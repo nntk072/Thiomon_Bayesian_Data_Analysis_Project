@@ -1,0 +1,119 @@
+---
+title: "Thiomon Data Analysis Report"
+author: "Anonymous"
+output: 
+  pdf_document: 
+    toc: yes
+    toc_depth: 5
+bibliography: references.bib 
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r include=FALSE}
+suppressPackageStartupMessages(library(aaltobda))
+suppressPackageStartupMessages(library(rstan))
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(loo))
+suppressPackageStartupMessages(library(bayesplot))
+suppressPackageStartupMessages(library(gridExtra))
+
+```
+
+```{r include=FALSE}
+SEED = 42
+library(aaltobda)
+library(rstan)
+library(dplyr)
+library(ggplot2)
+library(loo)
+library(bayesplot)
+library(gridExtra)
+library(grid)
+library(thiomon)
+setwd("C:/Users/nguye/OneDrive - Aalto University/University/First year/Aalto_University_course/CS-E5710 - Bayesian Data Analysis D/bayes-project-main")
+```
+
+
+\newpage
+
+# 1. Introduction
+
+
+# 2. Data: Thiomon Dataset
+
+
+
+## 2.1. Data Preprocessing 
+
+
+# 3. Models
+ 
+
+# 4. Priors
+
+
+## 4.1. Separate model
+
+
+## 4.2. Hierarchical model
+
+# 5. Fitting the Stan models
+
+
+## 5.1. Separate model  
+
+## 5.2. Hierarchical model  
+
+
+# 6. Convergence diagnostics
+
+
+## 6.1. $\widehat{R}$
+
+## 6.2. Effective sample size
+
+
+## 6.3. Divergent transitions  
+
+
+## 6.4. Conclusion about convergence
+
+
+## 6.5. Improving convergence
+
+
+# 7. Posterior predictive checks 
+
+
+# 8. Model comparison with LOO-CV
+
+# 9. Predictive performance assessment
+
+# 10. Sensitivity analysis
+
+## 10.1. LOO-CV
+### 10.1.1. Separate model
+
+### 10.1.2. Hierarchical model
+
+## 10.2. Posterior distributions
+
+# 11. Discussion of issues and potential improvements
+
+
+
+# 13. Self-reflection
+
+
+# Appendix
+## A. Stan code
+### A.1. Separate model
+
+### A.2. Hierarchical model
+
+## B. Loaded packages
+
+
+# References
