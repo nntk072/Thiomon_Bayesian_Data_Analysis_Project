@@ -23,7 +23,7 @@ suppressPackageStartupMessages(library(gridExtra))
 
 ```{r include=FALSE}
 SEED = 42
-library(aaltobda)
+library(readr)
 library(rstan)
 library(dplyr)
 library(ggplot2)
@@ -31,8 +31,8 @@ library(loo)
 library(bayesplot)
 library(gridExtra)
 library(grid)
-library(thiomon)
-setwd("C:/Users/nguye/OneDrive - Aalto University/University/First year/Aalto_University_course/CS-E5710 - Bayesian Data Analysis D/bayes-project-main")
+library(rmarkdown)
+setwd("C:/Users/nguye/OneDrive - Aalto University/University/First year/Project/Bayes_project")
 ```
 
 
@@ -46,46 +46,45 @@ setwd("C:/Users/nguye/OneDrive - Aalto University/University/First year/Aalto_Un
 
 
 ## 2.1. Data Preprocessing 
-
-
+# Load necessary library
+```{r}
+library(readr)
+df <- read_csv('thiomon.csv')
+df <- df %>% select(-active)
+df <- na.omit(df)
+correlation_matrix <- cor(df)
+# print(correlation_matrix)
+remission_correlation <- abs(correlation_matrix[, 'remission'])
+remission_correlation <- sort(remission_correlation, decreasing = TRUE)
+print(remission_correlation)
+```
 # 3. Models
- 
 
 # 4. Priors
 
-
 ## 4.1. Separate model
-
 
 ## 4.2. Hierarchical model
 
 # 5. Fitting the Stan models
 
-
 ## 5.1. Separate model  
 
 ## 5.2. Hierarchical model  
 
-
 # 6. Convergence diagnostics
-
 
 ## 6.1. $\widehat{R}$
 
 ## 6.2. Effective sample size
 
-
 ## 6.3. Divergent transitions  
-
 
 ## 6.4. Conclusion about convergence
 
-
 ## 6.5. Improving convergence
 
-
 # 7. Posterior predictive checks 
-
 
 # 8. Model comparison with LOO-CV
 
@@ -94,6 +93,7 @@ setwd("C:/Users/nguye/OneDrive - Aalto University/University/First year/Aalto_Un
 # 10. Sensitivity analysis
 
 ## 10.1. LOO-CV
+
 ### 10.1.1. Separate model
 
 ### 10.1.2. Hierarchical model
@@ -102,13 +102,12 @@ setwd("C:/Users/nguye/OneDrive - Aalto University/University/First year/Aalto_Un
 
 # 11. Discussion of issues and potential improvements
 
-
-
 # 13. Self-reflection
 
-
 # Appendix
+
 ## A. Stan code
+
 ### A.1. Separate model
 
 ### A.2. Hierarchical model
@@ -117,3 +116,7 @@ setwd("C:/Users/nguye/OneDrive - Aalto University/University/First year/Aalto_Un
 
 
 # References
+```{r include=FALSE}
+# render("BDA_report_withcode.Rmd", output_format = "pdf_document")
+
+```
