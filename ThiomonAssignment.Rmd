@@ -1,0 +1,209 @@
+```{r}
+if (!require(tidybayes)) {
+    install.packages("tidybayes")
+    library(tidybayes)
+}
+
+if (!require(brms)) {
+    install.packages("brms")
+    library(brms)
+}
+
+if (!require(metadat)) {
+  install.packages("metadat")
+  library(metadat)
+}
+
+if(!require(cmdstanr)){
+    install.packages("cmdstanr", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
+    library(cmdstanr)
+}
+
+cmdstan_installed <- function(){
+  res <- try(out <- cmdstanr::cmdstan_path(), silent = TRUE)
+  !inherits(res, "try-error")
+}
+if(!cmdstan_installed()){
+    install_cmdstan()
+}
+if(!require(ggplot2)){
+    install.packages("ggplot2")
+    library(ggplot2)
+}
+
+ggplot2::theme_set(theme_minimal(base_size = 14))
+
+if(!require(bayesplot)){
+    install.packages("bayesplot")
+    library(bayesplot)
+}
+
+if(!require(posterior)){
+    install.packages("posterior")
+    library(posterior)
+}
+
+if (!require(priorsense)) {
+  install.packages("priorsense")
+  library(priorsense)
+}
+
+if (!require(tibble)) {
+  install.packages("tibble")
+  library(tibble)
+}
+
+if (!require(RColorBrewer)) {
+  install.packages("RColorBrewer")
+  library(RColorBrewer)
+}
+
+if (!require(dplyr)) {
+  install.packages("dplyr")
+  library(dplyr)
+}
+
+if (!require(tinytable)) {
+  install.packages("tinytable")
+  library(tinytable)
+}
+
+options(tinytable_format_num_fmt = "significant_cell", tinytable_format_digits = 2, tinytable_tt_digits=2)
+```
+
+```{r}
+load("~/notebooks/BDA/thiomon.rda")
+thiomon <- na.omit(thiomon)
+ 
+#selected data, top 7 from the paper's recommendation for 
+temp_df <- thiomon[, c("hgb", "lymph_percent", "hct", "neut_percent", "plt", "alb", "ast")]
+
+#Set the age of the patient 
+temp_df["age"] = round(thiomon$days_of_life/365, digits=0)
+
+#prepare the final data frame MCV/WBC ratio
+source_data <- temp_df %>% select("age", everything())
+
+#Simple predictor check: mean corpuscular volume [MCV] and reductions in the white blood cell count [WBC], MCV/WBC ratio  
+source_data["mcv_wbc_rat"] = round(thiomon$mcv/thiomon$wbc, digits=0)
+
+#The systemic immune-inflammation index (SII), defined as neutrophils × platelets/lymphocytes
+source_data["sii_rat"] = round((source_data$plt * source_data$neut_percent)/source_data$lymph_percent, digits=0)
+
+#Finally copy the remission status
+source_data[ , "remission"] = thiomon$remission
+
+source_data[ , "active"] = thiomon$active
+
+store_data <- source_data[1:4500,]
+test_data <- source_data[4501:nrow(source_data),]
+
+#Save the data file for later loading
+save(store_data, file = "~/notebooks/BDA/thiomon_data.rda")
+save(test_data, file = "~/notebooks/BDA/test_data.rda")
+```
+
+```{r}
+# Load the saved data frame
+load("~/notebooks/BDA/thiomon_data.rda")
+load("~/notebooks/BDA/test_data.rda")
+
+source_data <- store_data
+
+# Specify the number of rows to sample (e.g., N = 3)
+NUM_OF_SAMPLES <- 2000
+
+# Randomly sample N rows from the data frame
+sampled_df <- source_data[sample(nrow(source_data), NUM_OF_SAMPLES), ]
+
+# View the sampled data frame
+print(sampled_df)
+
+sampled_df2 <- sampled_df[c("remission")]
+```
+
+```{r}
+data.frame(theta = plogis(ggdist::rstudent_t(n=20000, df=7, mu=10.0, sigma=1.0))) |>
+  mcmc_hist() +
+  xlim(c(-20,80)) +
+  labs(title='Default brms student_t(3, 0, 2.5) for Intercept')
+```
+
+```{r}
+thiomon_formulae <- bf(remission ~ 1, family = "bernoulli")
+thiomon_priors <- get_prior(thiomon_formulae, data = sampled_df)
+```
+
+```{r}
+thiomon_data_model <- brm(
+    formula = thiomon_formulae,
+    prior = thiomon_priors,
+    data = sampled_df,
+    save_pars = save_pars(all = TRUE),
+    iter = 2000,
+    warmup = 1000,
+    chains = 4,                           # Number of chains
+    control = list(
+      adapt_delta = 0.80,                 # Increase acceptance rate target
+      max_treedepth = 20                  # Increase the tree depth
+    ) 
+)
+```
+
+```{r}
+# Randomly sample N rows from the data frame
+TEST_SAMPLES = 559
+test_df <- test_data[sample(nrow(test_data), TEST_SAMPLES), ]
+
+# View the sampled data frame
+print(test_df)
+```
+
+```{r}
+num_of_success = 0
+num_of_fail = 0
+
+for (i in 1:TEST_SAMPLES) {
+    predicted_result <- test_df[i,] |> add_predicted_draws(thiomon_data_model)
+    result <- ifelse(sum(predicted_result$.prediction)/nrow(predicted_result) >= 0.5, 1, 0)
+    #cat("Predicted is", result, "and the Test Data is", test_df[i,]$remission, "\n")
+    if(result == test_df[i,]$remission)
+      {num_of_success = num_of_success + 1}
+    else
+      {num_of_fail = num_of_fail + 1}
+}
+
+#cat("Correct predictions are", num_of_success, "and Failed ones", num_of_fail, "\n")
+cat("Success ratio of the model is", round(num_of_fail/num_of_success,2)*100,"%")
+```
+
+```{r}
+
+mcmc_trace(thiomon_data_model, pars=c("Intercept")) + scale_colour_manual(values=c("#000000", "#E69F00", "#56B4E9", "#009E73"))
+
+pp_check(thiomon_data_model, type='dens_overlay', ndraws=20)
+
+pp_check(thiomon_data_model, type='loo_pit_qq', ndraws=4000)
+
+pp_check(thiomon_data_model, type='pit_ecdf', ndraws=4000)
+
+thiomon_data_model |>
+  powerscale_plot_dens(variable='b_Intercept', help_text=FALSE) +
+  labs(x='Test powerscale', y=NULL)
+
+draws <- draws |> mutate_variables(theta=plogis(b_Intercept))
+
+draws |> subset_draws(variable='b_Intercept') |> summarise_draws()
+
+options(tinytable_format_num_fmt = "significant_cell", tinytable_format_digits = 2, tinytable_tt_digits=2)
+
+draws |> subset_draws(variable='b_Intercept') |> summarise_draws() |> tt()
+
+mcmc_hist(draws, binwidth = 0.001, pars='theta') +
+  xlab('theta') +
+  xlim(c(0.5,0.6))
+
+draws <- as_draws_df(thiomon_data_model)
+powerscale_sensitivity(draws, fit=thiomon_data_model, variable="b_age") |>
+  tt()
+```

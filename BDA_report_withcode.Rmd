@@ -11,6 +11,99 @@ editor_options:
 ---
 
 ```{r include=FALSE}
+setwd("/notebooks/bda2024/Bayes_project")
+# setwd("C:/Users/nguyenl37/Downloads/Bayes_project/")
+# setwd("C:/Users/nguye/OneDrive - Aalto University/University/First year/Project/Bayes_project")
+SEED = 42
+if (!require(readr)) {
+    install.packages("readr")
+    library(readr)
+}
+
+if (!require(rstan)) {
+    install.packages("rstan")
+    library(rstan)
+}
+if (!require(loo)) {
+    install.packages("loo")
+    library(loo)
+}
+if (!require(gridExtra)) {
+    install.packages("gridExtra")
+    library(gridExtra)
+}
+if (!require(grid)) {
+    install.packages("grid")
+    library(grid)
+}
+if (!require(rmarkdown)) {
+    install.packages("rmarkdown")
+    library(rmarkdown)
+}
+
+
+if (!require(tidybayes)) {
+    install.packages("tidybayes")
+    library(tidybayes)
+}
+if (!require(brms)) {
+    install.packages("brms")
+    library(brms)
+}
+if (!require(metadat)) {
+  install.packages("metadat")
+  library(metadat)
+}
+if(!require(cmdstanr)){
+    install.packages("cmdstanr", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
+    library(cmdstanr)
+}
+cmdstan_installed <- function(){
+  res <- try(out <- cmdstanr::cmdstan_path(), silent = TRUE)
+  !inherits(res, "try-error")
+}
+if(!cmdstan_installed()){
+    install_cmdstan()
+}
+if(!require(ggplot2)){
+    install.packages("ggplot2")
+    library(ggplot2)
+}
+ggplot2::theme_set(theme_minimal(base_size = 14))
+if(!require(bayesplot)){
+    install.packages("bayesplot")
+    library(bayesplot)
+}
+if(!require(posterior)){
+    install.packages("posterior")
+    library(posterior)
+}
+if (!require(priorsense)) {
+  install.packages("priorsense")
+  library(priorsense)
+}
+if (!require(tibble)) {
+  install.packages("tibble")
+  library(tibble)
+}
+if (!require(RColorBrewer)) {
+  install.packages("RColorBrewer")
+  library(RColorBrewer)
+}
+if (!require(dplyr)) {
+  install.packages("dplyr")
+  library(dplyr)
+}
+if (!require(tinytable)) {
+  install.packages("tinytable")
+  library(tinytable)
+}
+options(tinytable_format_num_fmt = "significant_cell", tinytable_format_digits = 2, tinytable_tt_digits=2)
+
+```
+
+
+```{r include=FALSE}
 suppressPackageStartupMessages(library(aaltobda))
 suppressPackageStartupMessages(library(rstan))
 suppressPackageStartupMessages(library(dplyr))
@@ -18,21 +111,18 @@ suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(loo))
 suppressPackageStartupMessages(library(bayesplot))
 suppressPackageStartupMessages(library(gridExtra))
-
-```
-
-```{r include=FALSE}
-SEED = 42
-library(readr)
-library(rstan)
-library(dplyr)
-library(ggplot2)
-library(loo)
-library(bayesplot)
-library(gridExtra)
-library(grid)
-library(rmarkdown)
-setwd("C:/Users/nguye/OneDrive - Aalto University/University/First year/Project/Bayes_project")
+suppressPackageStartupMessages(library(grid))
+suppressPackageStartupMessages(library(rmarkdown))
+suppressPackageStartupMessages(library(tidybayes))
+suppressPackageStartupMessages(library(brms))
+suppressPackageStartupMessages(library(metadat))
+suppressPackageStartupMessages(library(cmdstanr))
+suppressPackageStartupMessages(library(priorsense))
+suppressPackageStartupMessages(library(tibble))
+suppressPackageStartupMessages(library(RColorBrewer))
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(tinytable))
+suppressPackageStartupMessages(library(posterior))
 ```
 
 
