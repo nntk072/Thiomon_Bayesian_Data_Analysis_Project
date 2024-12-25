@@ -6,6 +6,7 @@ output:
     toc: yes
     toc_depth: 5
 bibliography: references.bib 
+csl: vancouver.csl
 editor_options: 
   chunk_output_type: console
 ---
@@ -148,6 +149,9 @@ remission_correlation <- abs(correlation_matrix[, 'remission'])
 remission_correlation <- sort(remission_correlation, decreasing = TRUE)
 print(remission_correlation)
 ```
+This study explores the use of machine learning algorithms for predicting clinical outcomes with thiopurines [@10.1093/ecco-jcc/jjx014].
+This study explores the use of machine learning algorithms for predicting clinical outcomes with thiopurines [@10.1093/ecco-jcc/jjx014].
+
 # 3. Models
 
 # 4. Priors
