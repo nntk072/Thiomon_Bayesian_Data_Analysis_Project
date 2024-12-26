@@ -83,6 +83,7 @@ if (!require(dplyr)) {
   install.packages("dplyr")
   library(dplyr)
 }
+
 if (!require(tinytable)) {
   install.packages("tinytable")
   library(tinytable)
@@ -118,11 +119,12 @@ Filtering the variables and preprocessing the data
 
 ```{r}
 # Selected data, top 7 from the paper's recommendation
-temp_df <- thiomon[, c("hgb", "lymph_percent", "hct", "neut_percent", "plt", "alb", "ast")]
+#temp_df <- thiomon[, c("hgb", "lymph_percent", "hct", 
+                       #"neut_percent", "plt", "alb", "ast")]
+temp_df <- thiomon
 
 # Set the age of the patient
 temp_df["age"] <- round(thiomon$days_of_life / 365, digits = 0)
-
 
 # Prepare the final data frame MCV/WBC ratio
 source_data <- temp_df %>% select("age", everything())
@@ -132,7 +134,10 @@ source_data["mcv_wbc_rat"] <- round(thiomon$mcv / thiomon$wbc, digits = 0)
 
 # The systemic immune-inflammation index (SII), defined as neutrophils × platelets / lymphocytes
 source_data["sii_rat"] <- round((source_data$plt * source_data$neut_percent) / source_data$lymph_percent, digits = 0)
+source_data["log_siirat"] <- log(source_data["sii_rat"])
 
+source_data["deRitisRatio"] <- round(source_data$ast / source_data$alt, digits = 2)
+  
 # Finally copy the remission status
 source_data["remission"] <- thiomon$remission
 source_data["active"] <- thiomon$active
@@ -166,36 +171,170 @@ sampled_df2 <- sampled_df[c("remission")]
 ```
 
 ```{r}
-data.frame(theta = plogis(ggdist::rstudent_t(n=20000, df=7, mu=10.0, sigma=1.0))) |>
-  mcmc_hist() +
-  xlim(c(-20,80)) +
+#rstudent_t(n=20000, df=3, mu=15, sigma=3.0)
+#rbeta
+data.frame(theta = rbeta(20000,30,30,ncp=10)) |>
+  mcmc_hist(binwidth = .1) +
   labs(title='Default brms student_t(3, 0, 2.5) for Intercept')
 ```
 
 ```{r}
-thiomon_formulae <- bf(remission ~ 1, family = "bernoulli")
+#thiomon_formulae <- bf(remission ~ 0 + hgb + hct + alb, family = "bernoulli")
+thiomon_formulae <- bf(remission ~ 0 + hgb + lymph_percent + hct + neut_percent + plt + alb + ast + alk + mono_percent + rdw + mch + wbc + age + mcv + eos_percent + alt + mpv + baso_percent + gluc + mchc + tbil + cal + prot + un + pot + chlor + co2 + sod + creat, family = "bernoulli")
+
 thiomon_priors <- get_prior(thiomon_formulae, data = sampled_df)
 ```
 
+thiomon_data_model \<- brm(
+
+formula = thiomon_formulae,
+
+prior = thiomon_priors,
+
+data = sampled_df,
+
+save_pars = save_pars(all = TRUE),
+
+iter = 2000,
+
+warmup = 1000,
+
+chains = 4, \# Number of chains
+
+control = list(
+
+adapt_delta = 0.8, \# Increase acceptance rate target
+
+max_treedepth = 20 \# Increase the tree depth
+
+)
+
+)
+
 ```{r}
-thiomon_data_model <- brm(
-    formula = thiomon_formulae,
-    prior = thiomon_priors,
+thiomon_formulae_2 <- bf(remission ~ 0 + hgb + mch + lymph_percent + neut_percent + eos_percent + mono_percent + creat + mpv + alb + baso_percent, family = "bernoulli")
+
+thiomon_priors_2 <- get_prior(thiomon_formulae_2, data = sampled_df)
+
+thiomon_data_model_2 <- brm(
+    formula = thiomon_formulae_2,
+    prior = thiomon_priors_2,
     data = sampled_df,
     save_pars = save_pars(all = TRUE),
     iter = 2000,
     warmup = 1000,
     chains = 4,                           # Number of chains
     control = list(
-      adapt_delta = 0.80,                 # Increase acceptance rate target
+      adapt_delta = 0.8,                 # Increase acceptance rate target
       max_treedepth = 20                  # Increase the tree depth
     ) 
 )
 ```
 
 ```{r}
+thiomon_formulae_4 <- bf(remission ~ 0 + hgb, family = "bernoulli")
+
+thiomon_priors_4 <- get_prior(thiomon_formulae_4, data = sampled_df)
+
+(thiomon_set_priors <- c(
+  prior(
+    normal(10,5),
+    class = "b",
+    coef = "hgb"
+  )
+  
+))
+
+thiomon_data_model_4 <- brm(
+    formula = thiomon_formulae_4,
+    prior = thiomon_set_priors,
+    data = sampled_df,
+    save_pars = save_pars(all = TRUE),
+    iter = 2000,
+    warmup = 1000,
+    chains = 4,                           # Number of chains
+    control = list(
+      adapt_delta = 0.8,                 # Increase acceptance rate target
+      max_treedepth = 20                  # Increase the tree depth
+    ) 
+)
+```
+
+```{r}
+#thiomon_formulae_3 <- bf(remission ~ 0 + hgb + lymph_percent + hct + neut_percent + plt + alb + ast, family = "bernoulli")
+
+thiomon_formulae_3 <- bf(remission ~ 0 + hgb + log_siirat + hct + deRitisRatio, family = "bernoulli")
+
+thiomon_priors_3 <- get_prior(thiomon_formulae_3, data = sampled_df)
+
+(thiomon_set_priors_3 <- c(
+  prior(
+    normal(10,5),
+    class = "b",
+    coef = "hgb"
+  ),
+  
+  prior(
+    normal(7,1),
+    class = "b",
+    coef = "log_siirat"
+  ),
+  
+  prior(
+    normal(1,1),
+    class = "b",
+    coef = "deRitisRatio"
+  ),
+
+  prior(
+    normal(35,3),
+    class = "b",
+    coef = "hct"
+  )  
+))
+
+thiomon_data_model_3 <- brm(
+    formula = thiomon_formulae_3,
+    prior = thiomon_set_priors_3,
+    data = sampled_df,
+    save_pars = save_pars(all = TRUE),
+    iter = 2000,
+    warmup = 1000,
+    chains = 4,                           # Number of chains
+    control = list(
+      adapt_delta = 0.8,                 # Increase acceptance rate target
+      max_treedepth = 20                  # Increase the tree depth
+    ) 
+)
+```
+
+```{r}
+if(!require(fitdistrplus)){
+    install.packages("fitdistrplus", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
+    library(fitdistrplus)
+}
+```
+
+```{r}
+fit_dist <- fitdist(source_data$deRitisRatio, "weibull")
+summary(fit_dist)
+plot(fit_dist)
+```
+
+```         
+```
+
+```{r}
+loo_compare(loo(thiomon_data_model), loo(thiomon_data_model_2), loo(thiomon_data_model_3)) |>
+  as.data.frame() |>
+  rownames_to_column("model") |>
+  select(model, elpd_diff, se_diff) |>
+  tt()
+```
+
+```{r}
 # Randomly sample N rows from the data frame
-TEST_SAMPLES = 500
+TEST_SAMPLES = 559
 test_df <- test_data[sample(nrow(test_data), TEST_SAMPLES), ]
 
 # View the sampled data frame
@@ -203,11 +342,9 @@ print(test_df)
 ```
 
 ```{r}
-num_of_success = 0
-num_of_fail = 0
-
 # Predict probabilities on the test data
-predicted_probs <- posterior_predict(thiomon_data_model, newdata = test_df, draws = 1000)
+predicted_probs <- posterior_predict(thiomon_data_model_3, 
+                                     newdata = test_df, draws = 1000)
 
 # Calculate the mean predicted probabilities for each test sample
 mean_probs <- colMeans(predicted_probs)
@@ -225,7 +362,15 @@ print(conf_matrix)
 ```
 
 ```{r}
-mcmc_trace(thiomon_data_model, pars=c("Intercept")) + scale_colour_manual(values=c("#000000", "#E69F00", "#56B4E9", "#009E73"))
+draws <- as_draws_df(thiomon_data_model_4)
+
+powerscale_plot_dens(draws, fit=thiomon_data_model_3,
+                     help_text=FALSE)
+
+powerscale_sensitivity(draws, fit=thiomon_data_model, variable="b_lymph_percent") |>
+  tt()
+
+mcmc_trace(thiomon_data_model, pars=c("b_hgb")) + scale_colour_manual(values=c("#000000", "#E69F00", "#56B4E9", "#009E73"))
 
 pp_check(thiomon_data_model, type='dens_overlay', ndraws=20)
 
@@ -236,7 +381,7 @@ pp_check(thiomon_data_model, type='pit_ecdf', ndraws=4000)
 thiomon_data_model |>
   powerscale_plot_dens(variable='b_Intercept', help_text=FALSE) +
   labs(x='Test powerscale', y=NULL)
-draws <- as_draws_df(thiomon_data_model)
+
 draws <- draws |> mutate_variables(theta=plogis(b_Intercept))
 
 draws |> subset_draws(variable='b_Intercept') |> summarise_draws()
