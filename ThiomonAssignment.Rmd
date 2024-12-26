@@ -300,6 +300,97 @@ predicted_classes <- ifelse(mean_probs >= 0.5, 1, 0)
 conf_matrix <- confusionMatrix(as.factor(predicted_classes), as.factor(test_df$remission))
 print(conf_matrix)
 ```
+```{r}
+
+thiomon_formulae <- bf(remission ~ 0 + hgb + hct + lymph_percent + neut_percent, family = "bernoulli")
+thiomon_priors <- get_prior(thiomon_formulae, data = sampled_df)
+
+thiomon_data_model <- brm(
+    formula = thiomon_formulae,
+    prior = thiomon_priors,
+    data = sampled_df,
+    save_pars = save_pars(all = TRUE),
+    iter = 2000,
+    warmup = 1000,
+    chains = 4,                           # Number of chains
+    control = list(
+      adapt_delta = 0.80,                 # Increase acceptance rate target
+      max_treedepth = 20                  # Increase the tree depth
+    ) 
+)
+
+# Randomly sample N rows from the data frame
+TEST_SAMPLES = 500
+test_df <- test_data[sample(nrow(test_data), TEST_SAMPLES), ]
+
+# View the sampled data frame
+print(test_df)
+
+# Predict probabilities on the test data
+predicted_probs <- posterior_predict(thiomon_data_model, newdata = test_df, draws = 1000)
+
+# Calculate the mean predicted probabilities for each test sample
+mean_probs <- colMeans(predicted_probs)
+
+# Generate ROC curve
+roc_curve <- roc(test_df$remission, mean_probs)
+plot(roc_curve, main = "ROC Curve")
+
+# Predict classes based on a threshold of 0.5
+predicted_classes <- ifelse(mean_probs >= 0.5, 1, 0)
+
+# Generate confusion matrix
+conf_matrix <- confusionMatrix(as.factor(predicted_classes), as.factor(test_df$remission))
+print(conf_matrix)
+
+```
+
+```{r}
+# Define the formula
+thiomon_formulae <- bf(remission | trials(1) ~ 1 + hgb + hct + lymph_percent + neut_percent + plt + alb + ast + age + mcv_wbc_rat + sii_rat, family = "binomial")
+
+# Get priors
+thiomon_priors <- get_prior(hierarchical_formula, data = store_data)
+
+thiomon_data_model <- brm(
+    formula = thiomon_formulae,
+    prior = thiomon_priors,
+    data = sampled_df,
+    save_pars = save_pars(all = TRUE),
+    iter = 2000,
+    warmup = 1000,
+    chains = 4,                           # Number of chains
+    control = list(
+      adapt_delta = 0.80,                 # Increase acceptance rate target
+      max_treedepth = 20                  # Increase the tree depth
+    ) 
+)
+
+# Randomly sample N rows from the data frame
+TEST_SAMPLES = 500
+test_df <- test_data[sample(nrow(test_data), TEST_SAMPLES), ]
+
+# View the sampled data frame
+print(test_df)
+
+# Predict probabilities on the test data
+predicted_probs <- posterior_predict(thiomon_data_model, newdata = test_df, draws = 1000)
+
+# Calculate the mean predicted probabilities for each test sample
+mean_probs <- colMeans(predicted_probs)
+
+# Generate ROC curve
+roc_curve <- roc(test_df$remission, mean_probs)
+plot(roc_curve, main = "ROC Curve")
+
+# Predict classes based on a threshold of 0.5
+predicted_classes <- ifelse(mean_probs >= 0.5, 1, 0)
+
+# Generate confusion matrix
+conf_matrix <- confusionMatrix(as.factor(predicted_classes), as.factor(test_df$remission))
+print(conf_matrix)
+
+```
 
 ```{r include=FALSE}
 
@@ -307,3 +398,4 @@ print(conf_matrix)
 # render("ThiomonAssignment.Rmd", output_format = "pdf_document")
 
 ```
+
