@@ -4,6 +4,7 @@ Environment setup
 rm(list = ls())
 setwd("/notebooks/bda2024/Bayes_project")
 SEED = 42
+
 if (!require(readr)) {
     install.packages("readr")
     library(readr)
@@ -13,14 +14,17 @@ if (!require(rstan)) {
     install.packages("rstan")
     library(rstan)
 }
+
 if (!require(loo)) {
     install.packages("loo")
     library(loo)
 }
+
 if (!require(gridExtra)) {
     install.packages("gridExtra")
     library(gridExtra)
 }
+
 if (!require(grid)) {
     install.packages("grid")
     library(grid)
@@ -30,55 +34,66 @@ if (!require(rmarkdown)) {
     library(rmarkdown)
 }
 
-
 if (!require(tidybayes)) {
     install.packages("tidybayes")
     library(tidybayes)
 }
+
 if (!require(brms)) {
     install.packages("brms")
     library(brms)
 }
+
 if (!require(metadat)) {
   install.packages("metadat")
   library(metadat)
 }
+
 if(!require(cmdstanr)){
     install.packages("cmdstanr", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
     library(cmdstanr)
 }
+
 cmdstan_installed <- function(){
   res <- try(out <- cmdstanr::cmdstan_path(), silent = TRUE)
   !inherits(res, "try-error")
 }
+
 if(!cmdstan_installed()){
     install_cmdstan()
 }
+
 if(!require(ggplot2)){
     install.packages("ggplot2")
     library(ggplot2)
 }
+
 ggplot2::theme_set(theme_minimal(base_size = 14))
 if(!require(bayesplot)){
     install.packages("bayesplot")
     library(bayesplot)
 }
+
 if(!require(posterior)){
     install.packages("posterior")
     library(posterior)
 }
+
 if (!require(priorsense)) {
   install.packages("priorsense")
   library(priorsense)
 }
+
 if (!require(tibble)) {
   install.packages("tibble")
   library(tibble)
 }
+
 if (!require(RColorBrewer)) {
   install.packages("RColorBrewer")
   library(RColorBrewer)
 }
+
 if (!require(dplyr)) {
   install.packages("dplyr")
   library(dplyr)
@@ -88,21 +103,32 @@ if (!require(tinytable)) {
   install.packages("tinytable")
   library(tinytable)
 }
+
 if (!require(pROC)) {
   install.packages("pROC")
   library(pROC)
 }
+
 if (!require(caret)) {
   install.packages("caret")
   library(caret)
 }
+
+if(!require(fitdistrplus)){
+    install.packages("fitdistrplus", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
+    library(fitdistrplus)
+}
+
 options(tinytable_format_num_fmt = "significant_cell", tinytable_format_digits = 2, tinytable_tt_digits=2)
 ```
 
 Data setup
 
 ```{r}
+#Loading the data
 load("thiomon.rda")
+
+#Cleanup entries that have NaN values or values that are not populated
 thiomon <- na.omit(thiomon)
 ```
 
@@ -112,22 +138,24 @@ Correlation Matrix for observation between retransmission and the target variabl
 correlation_matrix <- cor(thiomon)
 remission_correlation <- abs(correlation_matrix[, 'remission'])
 remission_correlation <- sort(remission_correlation, decreasing = TRUE)
-print(remission_correlation)
+#print(remission_correlation)
+df <- data.frame(remission_correlation)
+options(digits = 1)
+print(df)
 ```
 
-Filtering the variables and preprocessing the data
+Filtering the variables and pre-processing the data
 
 ```{r}
-# Selected data, top 7 from the paper's recommendation
-#temp_df <- thiomon[, c("hgb", "lymph_percent", "hct", 
-                       #"neut_percent", "plt", "alb", "ast")]
-temp_df <- thiomon
 
-# Set the age of the patient
-temp_df["age"] <- round(thiomon$days_of_life / 365, digits = 0)
+# From the original paper top-7 recommended parameters from CBC
+#c("hgb", "lymph_percent", "hct","neut_percent", "plt", "alb", "ast")]
 
-# Prepare the final data frame MCV/WBC ratio
-source_data <- temp_df %>% select("age", everything())
+#Process the data set with some additional processing
+source_data <- thiomon
+
+# Set the age of the patient, granularity years
+source_data["age"] <- round(thiomon$days_of_life / 365, digits = 0)
 
 # Simple predictor check: mean corpuscular volume [MCV] and reductions in the white blood cell count [WBC], MCV/WBC ratio
 source_data["mcv_wbc_rat"] <- round(thiomon$mcv / thiomon$wbc, digits = 0)
@@ -136,138 +164,75 @@ source_data["mcv_wbc_rat"] <- round(thiomon$mcv / thiomon$wbc, digits = 0)
 source_data["sii_rat"] <- round((source_data$plt * source_data$neut_percent) / source_data$lymph_percent, digits = 0)
 source_data["log_siirat"] <- log(source_data["sii_rat"])
 
+#The AST/ALT ratio or De Ritis ratio is the ratio between the concentrations of two enzymes, aspartate transaminase (AST) and alanine transaminase, aka alanine aminotransferase (ALT), in the blood of a human
 source_data["deRitisRatio"] <- round(source_data$ast / source_data$alt, digits = 2)
   
-# Finally copy the remission status
-source_data["remission"] <- thiomon$remission
-source_data["active"] <- thiomon$active
-
+#Split data for model fitting and testing separately
 store_data <- source_data[1:4500, ]
 test_data <- source_data[4501:nrow(source_data), ]
 
-# Save the data file for later loading
-save(store_data, file = "thiomon_data.rda")
-save(test_data, file = "test_data.rda")
+# Save the data file so we don't have to process everytime
+save(store_data, file = "thiomon_source_data.rda")
+save(test_data, file = "thiomon_test_data.rda")
 ```
 
 Process the data
 
 ```{r}
 # Load the saved data frame
-load("thiomon_data.rda")
-load("test_data.rda")
+load("thiomon_source_data.rda")
+load("thiomon_test_data.rda")
 source_data <- store_data
 
-# Specify the number of rows to sample (e.g., N = 3)
-NUM_OF_SAMPLES <- 2000
-
-# Randomly sample N rows from the data frame
+# Sample a subset of the 4500 rows to improve computation time
+NUM_OF_SAMPLES <- 1000
 sampled_df <- source_data[sample(nrow(source_data), NUM_OF_SAMPLES), ]
 
-# View the sampled data frame
-print(sampled_df)
-
-sampled_df2 <- sampled_df[c("remission")]
+# View the sampled data frame if needed
+#print(sampled_df, n=20)
 ```
 
 ```{r}
-#rstudent_t(n=20000, df=3, mu=15, sigma=3.0)
-#rbeta
-data.frame(theta = rbeta(20000,30,30,ncp=10)) |>
-  mcmc_hist(binwidth = .1) +
-  labs(title='Default brms student_t(3, 0, 2.5) for Intercept')
+#Task 0 - Inapplicability of pooled model
+#Why pooled model cannot be used here? With pooled model there is one single global intercept which from the practical point does not make sense as there is no way in which any blood parameter can take the value 0 in real life for humans. We can only experiment with separate models.
+
+#Continue investigations with separate model
+#Task 1: Testing the predictive power of a bayesian model using all the parameters indicated in the research paper
+#The baseline formula uses 100% of the blood parameters
+#thiomon_baseline <- bf(remission ~ 0 + hgb + lymph_percent + hct + neut_percent + plt + alb + ast + alk + mono_percent + rdw + mch + wbc + age + mcv + eos_percent + alt + mpv + baso_percent + gluc + mchc + tbil + cal + prot + un + pot + chlor + co2 + sod + creat, family = "bernoulli")
+
+#The priors are default ones
+#thiomon_priors <- get_prior(thiomon_formulae, data = sampled_df)
+
+#Purpose of Task 1 is to numerically assess the predictive power of the baseline bayesian model fitting all blood parameters to a bionomial distribution with logit as the outcome to predict the remission status of the disease
+#The model predicts with 66% accuracy (79% in the paper with a machine learning model)
+#For future work section
+#Improve the accuracy of the model by using informative priors,combine
 ```
 
 ```{r}
-#thiomon_formulae <- bf(remission ~ 0 + hgb + hct + alb, family = "bernoulli")
-thiomon_formulae <- bf(remission ~ 0 + hgb + lymph_percent + hct + neut_percent + plt + alb + ast + alk + mono_percent + rdw + mch + wbc + age + mcv + eos_percent + alt + mpv + baso_percent + gluc + mchc + tbil + cal + prot + un + pot + chlor + co2 + sod + creat, family = "bernoulli")
-
-thiomon_priors <- get_prior(thiomon_formulae, data = sampled_df)
-```
-
-thiomon_data_model \<- brm(
-
-formula = thiomon_formulae,
-
-prior = thiomon_priors,
-
-data = sampled_df,
-
-save_pars = save_pars(all = TRUE),
-
-iter = 2000,
-
-warmup = 1000,
-
-chains = 4, \# Number of chains
-
-control = list(
-
-adapt_delta = 0.8, \# Increase acceptance rate target
-
-max_treedepth = 20 \# Increase the tree depth
-
-)
-
-)
-
-```{r}
-thiomon_formulae_2 <- bf(remission ~ 0 + hgb + mch + lymph_percent + neut_percent + eos_percent + mono_percent + creat + mpv + alb + baso_percent, family = "bernoulli")
-
-thiomon_priors_2 <- get_prior(thiomon_formulae_2, data = sampled_df)
-
-thiomon_data_model_2 <- brm(
-    formula = thiomon_formulae_2,
-    prior = thiomon_priors_2,
-    data = sampled_df,
-    save_pars = save_pars(all = TRUE),
-    iter = 2000,
-    warmup = 1000,
-    chains = 4,                           # Number of chains
-    control = list(
-      adapt_delta = 0.8,                 # Increase acceptance rate target
-      max_treedepth = 20                  # Increase the tree depth
-    ) 
-)
-```
-
-```{r}
-thiomon_formulae_4 <- bf(remission ~ 0 + hgb, family = "bernoulli")
-
-thiomon_priors_4 <- get_prior(thiomon_formulae_4, data = sampled_df)
-
-(thiomon_set_priors <- c(
-  prior(
-    normal(10,5),
-    class = "b",
-    coef = "hgb"
-  )
-  
-))
-
-thiomon_data_model_4 <- brm(
-    formula = thiomon_formulae_4,
-    prior = thiomon_set_priors,
-    data = sampled_df,
-    save_pars = save_pars(all = TRUE),
-    iter = 2000,
-    warmup = 1000,
-    chains = 4,                           # Number of chains
-    control = list(
-      adapt_delta = 0.8,                 # Increase acceptance rate target
-      max_treedepth = 20                  # Increase the tree depth
-    ) 
-)
-```
-
-```{r}
+#Task 2: Use the top 7 blood parameters and improvise on the model
+#BRMS formula using the top 7
 #thiomon_formulae_3 <- bf(remission ~ 0 + hgb + lymph_percent + hct + neut_percent + plt + alb + ast, family = "bernoulli")
 
-thiomon_formulae_3 <- bf(remission ~ 0 + hgb + log_siirat + hct + deRitisRatio, family = "bernoulli")
+#One improvement is to combine the different blood parameters according to medical science. SII and deRitisRatio are 2 such covariates which are recogonized. Reducing the number of covariates not only is computationally efficient but the search for informative priors is easier
+ref_thiomon_formulae <- bf(remission ~ 0 + hgb + log_siirat + hct + deRitisRatio, family = "bernoulli")
 
-thiomon_priors_3 <- get_prior(thiomon_formulae_3, data = sampled_df)
+#Default priors are flat and created at least two issues
+#Issue 1 - Accuracy of the model is not optimal (61%)
+#Issue 2 - Prior sensitivity checks fail as flat priors have infinite k-hat values
+#There was no issue with improper posterior with flat priors
 
-(thiomon_set_priors_3 <- c(
+thiomon_priors_default_priors <- get_prior(ref_thiomon_formulae, data = sampled_df)
+
+#Values of the parameters and their legal values were checked and also tools like fitdist were used
+
+#Normal distribution works well for all parameters except SII wherein instead of SII, log(SII) is uniformly distributed
+#Informative priors are set based on the distributions of the parameters themselves after plotting with e.g., mcmc_hist()
+
+#All parameters of model saved for e.g., for LOO and moment matching if needed
+
+(thiomon_set_priors_informative <- c(
   prior(
     normal(10,5),
     class = "b",
@@ -293,143 +258,66 @@ thiomon_priors_3 <- get_prior(thiomon_formulae_3, data = sampled_df)
   )  
 ))
 
-thiomon_data_model_3 <- brm(
-    formula = thiomon_formulae_3,
-    prior = thiomon_set_priors_3,
+thiomon_data_model <- brm(
+    formula = ref_thiomon_formulae,
+    prior = thiomon_set_priors_informative,
     data = sampled_df,
     save_pars = save_pars(all = TRUE),
     iter = 2000,
     warmup = 1000,
     chains = 4,                           # Number of chains
     control = list(
-      adapt_delta = 0.8,                 # Increase acceptance rate target
-      max_treedepth = 20                  # Increase the tree depth
+      adapt_delta = 0.8,                 # Increase acceptance rate target if needed
+      max_treedepth = 10                 # Increase the tree depth if needed
     ) 
 )
 ```
 
 ```{r}
-if(!require(fitdistrplus)){
-    install.packages("fitdistrplus", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
-    library(fitdistrplus)
-}
-```
+#Report model summary, Rhat, ESS, convergence statistics etc.,
+summary(thiomon_data_model)
 
-```{r}
-fit_dist <- fitdist(source_data$deRitisRatio, "weibull")
-summary(fit_dist)
-plot(fit_dist)
-```
+#Check EPLD LOO
+loo(thiomon_data_model)
 
-```         
-```
+#Check if chains converge
+mcmc_trace(thiomon_data_model, pars=c("b_hgb", "b_log_siirat", "b_hct", "b_deRitisRatio")) + scale_colour_manual(values=c("#000000", "#E69F00", "#56B4E9", "#009E73"))
 
-```{r}
-loo_compare(loo(thiomon_data_model), loo(thiomon_data_model_2), loo(thiomon_data_model_3)) |>
-  as.data.frame() |>
-  rownames_to_column("model") |>
-  select(model, elpd_diff, se_diff) |>
-  tt()
-```
+#Autocorrelation function?
 
-```{r}
-# Randomly sample N rows from the data frame
-TEST_SAMPLES = 559
-test_df <- test_data[sample(nrow(test_data), TEST_SAMPLES), ]
+#Make PP checks
+pp_check(thiomon_data_model, type='dens_overlay', ndraws=200)
+pp_check(thiomon_data_model, type='loo_pit_qq', ndraws=1000)
+pp_check(thiomon_data_model, type='pit_ecdf', ndraws=1000)
 
-# View the sampled data frame
-print(test_df)
-```
+#Test for prior sensitivity
+model_draws <- as_draws_df(thiomon_data_model)
 
-```{r}
-# Predict probabilities on the test data
-predicted_probs <- posterior_predict(thiomon_data_model_3, 
-                                     newdata = test_df, draws = 1000)
-
-# Calculate the mean predicted probabilities for each test sample
-mean_probs <- colMeans(predicted_probs)
-
-# Generate ROC curve
-roc_curve <- roc(test_df$remission, mean_probs)
-plot(roc_curve, main = "ROC Curve")
-
-# Predict classes based on a threshold of 0.5
-predicted_classes <- ifelse(mean_probs >= 0.5, 1, 0)
-
-# Generate confusion matrix
-conf_matrix <- confusionMatrix(as.factor(predicted_classes), as.factor(test_df$remission))
-print(conf_matrix)
-```
-
-```{r}
-draws <- as_draws_df(thiomon_data_model_4)
-
-powerscale_plot_dens(draws, fit=thiomon_data_model_3,
+#Prior sensitivity is not there thanks to informative priors
+powerscale_plot_dens(model_draws, fit=thiomon_data_model,
                      help_text=FALSE)
 
-powerscale_sensitivity(draws, fit=thiomon_data_model, variable="b_lymph_percent") |>
+#Also the values look good!
+powerscale_sensitivity(model_draws, fit=thiomon_data_model) |>
   tt()
 
-mcmc_trace(thiomon_data_model, pars=c("b_hgb")) + scale_colour_manual(values=c("#000000", "#E69F00", "#56B4E9", "#009E73"))
+#Summarize the draws
+model_draws |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
 
-pp_check(thiomon_data_model, type='dens_overlay', ndraws=20)
-
-pp_check(thiomon_data_model, type='loo_pit_qq', ndraws=4000)
-
-pp_check(thiomon_data_model, type='pit_ecdf', ndraws=4000)
-
-thiomon_data_model |>
-  powerscale_plot_dens(variable='b_Intercept', help_text=FALSE) +
-  labs(x='Test powerscale', y=NULL)
-
-draws <- draws |> mutate_variables(theta=plogis(b_Intercept))
-
-draws |> subset_draws(variable='b_Intercept') |> summarise_draws()
-
-options(tinytable_format_num_fmt = "significant_cell", tinytable_format_digits = 2, tinytable_tt_digits=2)
-
-draws |> subset_draws(variable='b_Intercept') |> summarise_draws() |> tt()
-
-mcmc_hist(draws, binwidth = 0.001, pars='theta') +
-  xlab('theta') +
-  xlim(c(0.5,0.6))
-
-draws <- as_draws_df(thiomon_data_model)
+as_draws_df(model_draws) |> mcmc_areas(pars=c('b_hgb', 'b_log_siirat', 'b_hct', 'b_deRitisRatio'))
 ```
 
 ```{r}
-thiomon_formulae <- bf(remission ~ 0 + hgb + hct + alb, family = "bernoulli")
-thiomon_priors <- get_prior(thiomon_formulae, data = sampled_df)
-```
-
-```{r}
-thiomon_data_model <- brm(
-    formula = thiomon_formulae,
-    prior = thiomon_priors,
-    data = sampled_df,
-    save_pars = save_pars(all = TRUE),
-    iter = 2000,
-    warmup = 1000,
-    chains = 4,                           # Number of chains
-    control = list(
-      adapt_delta = 0.80,                 # Increase acceptance rate target
-      max_treedepth = 20                  # Increase the tree depth
-    ) 
-)
-```
-
-```{r}
-# Randomly sample N rows from the data frame
-TEST_SAMPLES = 500
+#Use model for inference, test samples were not used in the model generation
+TEST_SAMPLES = 200
 test_df <- test_data[sample(nrow(test_data), TEST_SAMPLES), ]
 
 # View the sampled data frame
 print(test_df)
-```
 
-```{r}
 # Predict probabilities on the test data
-predicted_probs <- posterior_predict(thiomon_data_model, newdata = test_df, draws = 1000)
+predicted_probs <- posterior_predict(thiomon_data_model, 
+                                     newdata = test_df, draws = 4000)
 
 # Calculate the mean predicted probabilities for each test sample
 mean_probs <- colMeans(predicted_probs)
@@ -443,12 +331,35 @@ predicted_classes <- ifelse(mean_probs >= 0.5, 1, 0)
 
 # Generate confusion matrix
 conf_matrix <- confusionMatrix(as.factor(predicted_classes), as.factor(test_df$remission))
+
+#Convert this to data frame and use tt() for pretty print
 print(conf_matrix)
 ```
+
+thiomon_data_model \<- brm(
+
+formula = thiomon_formulae,
+
+prior = thiomon_priors,
+
+data = sampled_df,
+
+save_pars = save_pars(all = TRUE),
+
+iter = 2000,
+
+warmup = 1000,
+
+chains = 4, \# Number of chains
+
+control = list(
+
+adapt_delta = 0.8, \# Increase acceptance rate target
+
+max_treedepth = 20 \# Increase the tree depth
 
 ```{r include=FALSE}
 
 # Export the file to PDF
-# render("ThiomonAssignment.Rmd", output_format = "pdf_document")
-
+#render("ThiomonAssignment.Rmd", output_format = "pdf_document")
 ```
