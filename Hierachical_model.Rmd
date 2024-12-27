@@ -1,0 +1,289 @@
+Environment setup
+
+```{r}
+rm(list = ls())
+setwd("/notebooks/bda2024/Bayes_project")
+SEED = 42
+if (!require(readr)) {
+    install.packages("readr")
+    library(readr)
+}
+
+if (!require(rstan)) {
+    install.packages("rstan")
+    library(rstan)
+}
+if (!require(loo)) {
+    install.packages("loo")
+    library(loo)
+}
+if (!require(gridExtra)) {
+    install.packages("gridExtra")
+    library(gridExtra)
+}
+if (!require(grid)) {
+    install.packages("grid")
+    library(grid)
+}
+if (!require(rmarkdown)) {
+    install.packages("rmarkdown")
+    library(rmarkdown)
+}
+
+
+if (!require(tidybayes)) {
+    install.packages("tidybayes")
+    library(tidybayes)
+}
+if (!require(brms)) {
+    install.packages("brms")
+    library(brms)
+}
+if (!require(metadat)) {
+  install.packages("metadat")
+  library(metadat)
+}
+if(!require(cmdstanr)){
+    install.packages("cmdstanr", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
+    library(cmdstanr)
+}
+cmdstan_installed <- function(){
+  res <- try(out <- cmdstanr::cmdstan_path(), silent = TRUE)
+  !inherits(res, "try-error")
+}
+if(!cmdstan_installed()){
+    install_cmdstan()
+}
+if(!require(ggplot2)){
+    install.packages("ggplot2")
+    library(ggplot2)
+}
+ggplot2::theme_set(theme_minimal(base_size = 14))
+if(!require(bayesplot)){
+    install.packages("bayesplot")
+    library(bayesplot)
+}
+if(!require(posterior)){
+    install.packages("posterior")
+    library(posterior)
+}
+if (!require(priorsense)) {
+  install.packages("priorsense")
+  library(priorsense)
+}
+if (!require(tibble)) {
+  install.packages("tibble")
+  library(tibble)
+}
+if (!require(RColorBrewer)) {
+  install.packages("RColorBrewer")
+  library(RColorBrewer)
+}
+if (!require(dplyr)) {
+  install.packages("dplyr")
+  library(dplyr)
+}
+if (!require(tinytable)) {
+  install.packages("tinytable")
+  library(tinytable)
+}
+if (!require(pROC)) {
+  install.packages("pROC")
+  library(pROC)
+}
+if (!require(caret)) {
+  install.packages("caret")
+  library(caret)
+}
+options(tinytable_format_num_fmt = "significant_cell", tinytable_format_digits = 2, tinytable_tt_digits=2)
+```
+
+
+Process the data
+
+```{r}
+# Load the saved data frames
+load("thiomon_data.rda")
+load("test_data.rda")
+
+source_data <- store_data
+
+# Specify the number of rows to sample
+NUM_OF_SAMPLES <- 2000
+
+# Randomly sample rows from the data frame
+train_data <- source_data[sample(nrow(source_data), NUM_OF_SAMPLES), ]
+
+# View the sampled data frame
+print(train_data)
+
+# Extract the 'remission' column
+train_data2 <- train_data["remission"]
+```
+
+```{r}
+# Fit the logistic regression model
+logistic_model <- glm(remission ~ hgb + hct + lymph_percent + neut_percent, data = train_data, family = binomial())
+
+# Summary of the logistic regression model
+summary(logistic_model)
+
+# Predict probabilities on the training data
+train_predicted_probs_logistic <- predict(logistic_model, newdata = train_data, type = "response")
+
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_logistic <- roc(train_data$remission, train_predicted_probs_logistic)
+plot(train_roc_curve_logistic, main = "Train ROC Curve")
+optimal_threshold_logistic <- coords(train_roc_curve_logistic, "best", ret = "threshold")
+
+# Predict probabilities on the test data
+test_predicted_probs_logistic <- predict(logistic_model, newdata = test_data, type = "response")
+
+# ROC Curve for test data
+test_roc_curve_logistic <- roc(test_data$remission, test_predicted_probs_logistic)
+plot(test_roc_curve_logistic, main = "Test ROC Curve")
+
+# Apply the optimal threshold to classify test data
+test_predicted_classes_logistic <- ifelse(test_predicted_probs_logistic >= optimal_threshold_logistic$threshold, 1, 0)
+
+# Confusion Matrix
+conf_matrix_logistic <- confusionMatrix(as.factor(test_predicted_classes_logistic), as.factor(test_data$remission))
+print(conf_matrix_logistic)
+```
+
+``` {r}
+# Define the simple model formula
+simple_formula <- bf(remission ~ 1 + hgb + hct + lymph_percent + neut_percent, family = "bernoulli")
+
+# Get priors for the simple model
+simple_priors <- get_prior(simple_formula, data = train_data)
+
+# Fit the simple model
+simple_model <- brm(
+  formula = simple_formula,
+  data = train_data,
+  prior = simple_priors,
+  iter = 2000,
+  warmup = 1000,
+  chains = 4,
+  control = list(adapt_delta = 0.95, max_treedepth = 15)
+)
+
+# Calculate predicted probabilities on training data
+train_predicted_probs_simple <- posterior_predict(simple_model, newdata = train_data, draws = 1000, allow_new_levels = TRUE)
+train_mean_probs_simple <- colMeans(train_predicted_probs_simple)
+
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_simple <- roc(train_data$remission, train_mean_probs_simple)
+optimal_threshold_simple <- coords(train_roc_curve_simple, "best", ret = "threshold")
+
+# Summarize and plot the simple model
+summary(simple_model)
+plot(simple_model)
+
+# Calculate predicted probabilities on test data
+predicted_probs_simple <- posterior_predict(simple_model, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_simple <- colMeans(predicted_probs_simple)
+
+# Plot ROC Curve for test data
+roc_curve_simple <- roc(test_data$remission, mean_probs_simple)
+plot(roc_curve_simple, main = "ROC Curve")
+
+# Generate Confusion Matrix
+test_predicted_classes_simple <- ifelse(mean_probs_simple >= optimal_threshold_simple$threshold, 1, 0)
+conf_matrix_simple <- confusionMatrix(as.factor(test_predicted_classes_simple), as.factor(test_data$remission))
+print(conf_matrix_simple)
+
+```
+
+
+Hierarchical model
+```{r}
+hierarchical_formula <- bf(remission ~ hgb + hct + lymph_percent + neut_percent + (1 | age), family = bernoulli())
+
+hierarchical_priors <- c(
+  set_prior("normal(0, 5)", class = "b"),
+  set_prior("student_t(3, 0, 2.5)", class = "Intercept")
+)
+
+hierarchical_model <- brm(
+  formula = hierarchical_formula,
+  data = train_data,
+  prior = hierarchical_priors,
+  iter = 2000,
+  warmup = 1000,
+  chains = 4,
+  control = list(adapt_delta = 0.95, max_treedepth = 15)
+)
+
+summary(hierarchical_model)
+plot(hierarchical_model)
+# Calculate predicted probabilities on training data
+train_predicted_probs_hierarchical <- posterior_predict(hierarchical_model, newdata = train_data, draws = 1000, allow_new_levels = TRUE)
+train_mean_probs_hierarchical <- colMeans(train_predicted_probs_hierarchical)
+
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_hierarchical <- roc(train_data$remission, train_mean_probs_hierarchical)
+optimal_threshold_hierarchical <- coords(train_roc_curve_hierarchical, "best", ret = "threshold")
+
+predicted_probs_hierarchical <- posterior_predict(hierarchical_model, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_hierarchical <- colMeans(predicted_probs_hierarchical)
+
+# ROC Curve
+roc_curve_hierarchical <- roc(test_data$remission, mean_probs_hierarchical)
+plot(roc_curve_hierarchical, main = "ROC Curve")
+
+# Confusion Matrix
+predicted_classes_hierarchical <- ifelse(mean_probs_hierarchical >= optimal_threshold_hierarchical$threshold, 1, 0)
+conf_matrix_hierarchical <- confusionMatrix(as.factor(predicted_classes_hierarchical), as.factor(test_data$remission))
+print(conf_matrix_hierarchical)
+```
+
+```{r}
+library(pROC)
+library(ggplot2)
+
+# Function to interpolate and smooth ROC curve with jitter
+interpolate_smooth_roc_jitter <- function(roc_curve, n = 100, jitter_amount = 1e-5) {
+  roc_smooth <- smooth(roc_curve)
+  fpr <- seq(0, 1, length.out = n)
+  tpr <- approx(roc_smooth$specificities + runif(length(roc_smooth$specificities), -jitter_amount, jitter_amount), 
+                roc_smooth$sensitivities, xout = fpr)$y
+  data.frame(fpr = fpr, tpr = tpr)
+}
+
+# Calculate and interpolate ROC curves with jitter
+roc_logistic_train <- interpolate_smooth_roc_jitter(train_roc_curve_logistic)
+roc_logistic_test <- interpolate_smooth_roc_jitter(test_roc_curve_logistic)
+roc_simple_train <- interpolate_smooth_roc_jitter(train_roc_curve_simple)
+roc_simple_test <- interpolate_smooth_roc_jitter(roc_curve_simple)
+roc_hierarchical_train <- interpolate_smooth_roc_jitter(train_roc_curve_hierarchical)
+roc_hierarchical_test <- interpolate_smooth_roc_jitter(roc_curve_hierarchical)
+
+# Calculate AUC values
+auc_logistic_train <- auc(train_roc_curve_logistic)
+auc_logistic_test <- auc(test_roc_curve_logistic)
+auc_simple_train <- auc(train_roc_curve_simple)
+auc_simple_test <- auc(roc_curve_simple)
+auc_hierarchical_train <- auc(train_roc_curve_hierarchical)
+auc_hierarchical_test <- auc(roc_curve_hierarchical)
+
+# Combine ROC curves into one data frame
+roc_data <- rbind(
+  data.frame(roc_logistic_train, model = paste("Logistic Train (AUC =", round(auc_logistic_train, 2), ")")),
+  data.frame(roc_logistic_test, model = paste("Logistic Test (AUC =", round(auc_logistic_test, 2), ")")),
+  data.frame(roc_simple_train, model = paste("Simple Train (AUC =", round(auc_simple_train, 2), ")")),
+  data.frame(roc_simple_test, model = paste("Simple Test (AUC =", round(auc_simple_test, 2), ")")),
+  data.frame(roc_hierarchical_train, model = paste("Hierarchical Train (AUC =", round(auc_hierarchical_train, 2), ")")),
+  data.frame(roc_hierarchical_test, model = paste("Hierarchical Test (AUC =", round(auc_hierarchical_test, 2), ")"))
+)
+
+# Plot all ROC curves in one plot
+ggplot(roc_data, aes(x = fpr, y = tpr, color = model)) +
+  geom_line() +
+  labs(title = "ROC Curves for Different Models", x = "False Positive Rate", y = "True Positive Rate") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+

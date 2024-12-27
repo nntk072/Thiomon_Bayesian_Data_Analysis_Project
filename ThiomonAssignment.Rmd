@@ -271,7 +271,6 @@ thiomon_data_model <- brm(
       max_treedepth = 10                 # Increase the tree depth if needed
     ) 
 )
-```
 
 ```{r}
 #Report model summary, Rhat, ESS, convergence statistics etc.,
@@ -363,3 +362,4 @@ max_treedepth = 20 \# Increase the tree depth
 # Export the file to PDF
 #render("ThiomonAssignment.Rmd", output_format = "pdf_document")
 ```
+
