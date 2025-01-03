@@ -141,7 +141,7 @@ remission_correlation <- sort(remission_correlation, decreasing = TRUE)
 #print(remission_correlation)
 df <- data.frame(remission_correlation)
 options(digits = 1)
-print(df)
+print(df,nrows=32)
 ```
 
 Filtering the variables and pre-processing the data
@@ -185,11 +185,29 @@ load("thiomon_test_data.rda")
 source_data <- store_data
 
 # Sample a subset of the 4500 rows to improve computation time
-NUM_OF_SAMPLES <- 1000
+NUM_OF_SAMPLES <- 2000
 sampled_df <- source_data[sample(nrow(source_data), NUM_OF_SAMPLES), ]
 
 # View the sampled data frame if needed
 #print(sampled_df, n=20)
+```
+
+```{r}
+correlation_matrix <- cor(source_data)
+remission_correlation <- abs(correlation_matrix[, 'remission'])
+remission_correlation <- sort(remission_correlation, decreasing = TRUE)
+#print(remission_correlation)
+df <- data.frame(remission_correlation)
+options(digits = 1)
+print(df,nrows=37)
+```
+
+```{r}
+sampled_df |>
+  ggplot(aes(x = mcv_wbc_rat)) + xlim(c(0,150)) +
+  geom_histogram(binwidth = 0.1, fill = "skyblue", color = "black") +
+  theme_minimal() +
+  labs(title = "MCMC Histogram of Samples", x = "Parameter Value", y = "Frequency")
 ```
 
 ```{r}
@@ -216,7 +234,14 @@ sampled_df <- source_data[sample(nrow(source_data), NUM_OF_SAMPLES), ]
 #thiomon_formulae_3 <- bf(remission ~ 0 + hgb + lymph_percent + hct + neut_percent + plt + alb + ast, family = "bernoulli")
 
 #One improvement is to combine the different blood parameters according to medical science. SII and deRitisRatio are 2 such covariates which are recogonized. Reducing the number of covariates not only is computationally efficient but the search for informative priors is easier
-ref_thiomon_formulae <- bf(remission ~ 0 + hgb + log_siirat + hct + deRitisRatio, family = "bernoulli")
+#ref_thiomon_formulae <- bf(remission ~ 0 + hgb + log_siirat + hct + deRitisRatio, family = "bernoulli")
+
+#ref_thiomon_formulae <- bf(remission ~ 0 + log_siirat + hct + deRitisRatio + hgb + mcv_wbc_rat, family = "bernoulli")
+
+
+ref_thiomon_formulae <- bf(remission ~ 0  + lymph_percent + hct + neut_percent + plt + alb + ast + alk + mono_percent + rdw + mch + wbc + hgb + age + mcv + eos_percent + alt + mpv + baso_percent + gluc + mchc + tbil + cal + prot + un + pot + chlor + co2 + sod + creat, family = "bernoulli")
+
+#thiomon_formulae_3 <- bf(remission ~ 0 + hgb + lymph_percent + hct + neut_percent + plt + alb + ast, family = "bernoulli")
 
 #Default priors are flat and created at least two issues
 #Issue 1 - Accuracy of the model is not optimal (61%)
@@ -234,7 +259,7 @@ thiomon_priors_default_priors <- get_prior(ref_thiomon_formulae, data = sampled_
 
 (thiomon_set_priors_informative <- c(
   prior(
-    normal(10,5),
+    normal(13,5),
     class = "b",
     coef = "hgb"
   ),
@@ -252,23 +277,31 @@ thiomon_priors_default_priors <- get_prior(ref_thiomon_formulae, data = sampled_
   ),
 
   prior(
-    normal(35,3),
+    normal(35,5),
     class = "b",
     coef = "hct"
-  )  
-))
+  ),
 
+  prior(
+    normal(15,10),
+    class = "b",
+    coef = "mcv_wbc_rat"
+  )   
+))
+```
+
+```{r}
 thiomon_data_model <- brm(
     formula = ref_thiomon_formulae,
-    prior = thiomon_set_priors_informative,
+    prior = thiomon_priors_default_priors,
     data = sampled_df,
     save_pars = save_pars(all = TRUE),
     iter = 2000,
     warmup = 1000,
-    chains = 4,                           # Number of chains
+    chains = 1,                           # Number of chains
     control = list(
       adapt_delta = 0.8,                 # Increase acceptance rate target if needed
-      max_treedepth = 10                 # Increase the tree depth if needed
+      max_treedepth = 20                 # Increase the tree depth if needed
     ) 
 )
 ```
@@ -298,7 +331,7 @@ powerscale_plot_dens(model_draws, fit=thiomon_data_model,
                      help_text=FALSE)
 
 #Also the values look good!
-powerscale_sensitivity(model_draws, fit=thiomon_data_model) |>
+powerscale_sensitivity(as_draws_df(thiomon_data_model), fit=thiomon_data_model) |>
   tt()
 
 #Summarize the draws
@@ -309,7 +342,7 @@ as_draws_df(model_draws) |> mcmc_areas(pars=c('b_hgb', 'b_log_siirat', 'b_hct', 
 
 ```{r}
 #Use model for inference, test samples were not used in the model generation
-TEST_SAMPLES = 200
+TEST_SAMPLES = 250
 test_df <- test_data[sample(nrow(test_data), TEST_SAMPLES), ]
 
 # View the sampled data frame
