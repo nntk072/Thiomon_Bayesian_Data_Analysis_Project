@@ -2,7 +2,8 @@ Environment setup
 
 ```{r}
 rm(list = ls())
-setwd("/notebooks/bda2024/Bayes_project")
+setwd("c:/Users/nguye/OneDrive - Aalto University/University/First year/Project/Bayes_project/")
+# setwd("/notebooks/bda2024/Bayes_project")
 SEED = 42
 
 if (!require(readr)) {
@@ -269,8 +270,11 @@ thiomon_data_model <- brm(
     control = list(
       adapt_delta = 0.8,                 # Increase acceptance rate target if needed
       max_treedepth = 10                 # Increase the tree depth if needed
-    ) 
+    ),
+    threads = threading(2), cores = 8, backend = "cmdstanr",
 )
+
+```
 
 ```{r}
 #Report model summary, Rhat, ESS, convergence statistics etc.,
