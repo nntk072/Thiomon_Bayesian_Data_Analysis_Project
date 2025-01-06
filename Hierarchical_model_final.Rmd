@@ -2,8 +2,8 @@ Environment setup
 
 ```{r}
 rm(list = ls())
-# setwd("/notebooks/bda2024/Bayes_project")
-setwd("c:/Users/nguye/OneDrive - Aalto University/University/First year/Project/Bayes_project/")
+setwd("/notebooks/bda2024/Bayes_project")
+#setwd("c:/Users/nguye/OneDrive - Aalto University/University/First year/Project/Bayes_project/")
 SEED = 42
 if (!require(rstan)) {
     install.packages("rstan")
@@ -269,6 +269,7 @@ model_draws |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summar
 
 as_draws_df(model_draws) |> mcmc_areas(pars=c('b_hgb', 'b_log_siirat', 'b_hct', 'b_deRitisRatio'))
 ```
+
 ```{r}
 ref_thiomon_formulae <- bf(remission ~ 0 + hgb + hct + wbc + mpv + mchc, family = "bernoulli") # 65.8
 thiomon_priors_default_priors <- get_prior(ref_thiomon_formulae, data = train_data)
@@ -373,6 +374,7 @@ as_draws_df(model_draws) |> mcmc_areas(pars=c("b_hgb", "b_hct", "b_wbc", "b_mpv"
 ```
 
 ```{r}
+#Focus for today
 ref_thiomon_formulae <- bf(remission ~ 0 + hgb + hct + wbc + mpv + mchc + (1|hct), family = "bernoulli") # 65.5
 thiomon_set_priors_informative <- c(
   prior(
@@ -419,6 +421,9 @@ hierarchical_data_model_1 <- brm(
     ),
     threads = threading(2), cores = 8, backend = "cmdstanr", 
 )
+```
+
+```{r}
 # Calculate predicted probabilities on training data
 train_predicted_probs_hierarchical_1 <- posterior_predict(hierarchical_data_model_1, newdata = train_data, draws = 4000, allow_new_levels = TRUE)
 train_mean_probs_hierarchical_1 <- colMeans(train_predicted_probs_hierarchical_1)
@@ -829,5 +834,54 @@ ggplot(roc_data, aes(x = fpr, y = tpr, color = model)) +
   geom_line() +
   labs(title = "ROC Curves for Different Models", x = "False Positive Rate", y = "True Positive Rate") +
   theme_minimal() +
-  theme(legend.position = "bottom")
+```
+
+```{theme(legend.position = "bottom")}
+```
+
+```{r}
+library(e1071)
+library(caret)
+
+model_svm <- svm(remission ~ 0 + days_of_life + wbc + hgb + hct + plt + rbc + mcv + mch + mchc + rdw + mpv + neut_percent + lymph_percent + mono_percent + eos_percent + baso_percent + sod + pot + chlor + co2 + un + creat + gluc + cal + prot + alb + ast + alt + alk + tbil, data = thiomon)
+
+pred_probs <- predict(model_svm, type = "response")
+
+pred_classes <- ifelse(pred_probs > 0.5, 1, 0)
+
+table(predicted = pred_classes, actual = thiomon$remission)
+
+confusionMatrix(factor(pred_classes), factor(thiomon$remission))
+```
+
+```{r}
+model_glm <- glm(remission ~ 0 + days_of_life + wbc + hgb + hct + plt + rbc + mcv + mch + mchc + rdw + mpv + neut_percent + lymph_percent + mono_percent + eos_percent + baso_percent + sod + pot + chlor + co2 + un + creat + gluc + cal + prot + alb + ast + alt + alk + tbil, data = thiomon)
+
+pred_probs <- predict(model_glm, type = "response")
+
+pred_classes <- ifelse(pred_probs > 0.5, 1, 0)
+
+table(predicted = pred_classes, actual = thiomon$remission)
+
+confusionMatrix(factor(pred_classes), factor(thiomon$remission))
+```
+
+```{r}
+install.packages("nnet")
+library(nnet)
+
+# Example: Training a neural network
+model <- nnet(remission ~ days_of_life + wbc + hgb + hct + plt + rbc + mcv + mch + mchc + rdw + mpv + neut_percent + lymph_percent + mono_percent + eos_percent + baso_percent + sod + pot + chlor + co2 + un + creat + gluc + cal + prot + alb + ast + alt + alk + tbil, data = thiomon, size = 20,    # Number of hidden units 
+maxit = 100)  # For classification
+
+# Make predictions
+predictions <- predict(model, thiomon)
+
+# Convert to class labels
+pred_labels <- ifelse(predictions[, 1] > 0.5, 1, 0)
+
+# Confusion matrix (for evaluation)
+table(Predicted = pred_labels, Actual = thiomon$remission)
+
+confusionMatrix(factor(pred_classes), factor(thiomon$remission))
 ```
