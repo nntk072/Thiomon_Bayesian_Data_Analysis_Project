@@ -161,7 +161,9 @@ source_data["hbghctrat"] = round(thiomon$hgb/thiomon$hct,2)
 # Group hct into 10 groups, by splitting into 10 ranges (max - min) / 10
 #source_data["hbghctrat"] <- cut(source_data$hbghctrat, breaks = seq(min(source_data$hbghctrat), max(source_data$hbghctrat), length.out = 11), labels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10"))
 source_data["hbghctrat"] <- cut(source_data$hbghctrat, breaks = seq(min(source_data$hbghctrat), max(source_data$hbghctrat), length.out = 6), labels = c("1", "2", "3", "4", "5"))
-  
+
+source_data["hbghctrat"] <- as.character(source_data$hbghctrat)
+
 #Split data for model fitting and testing separately
 store_data <- source_data[1:4500, ]
 test_data <- source_data[4501:nrow(source_data), ]
@@ -197,7 +199,8 @@ thiomon_data_model_pooled <- brm(
     control = list(
       adapt_delta = 0.8,                 # Increase acceptance rate target if needed
       max_treedepth = 20                 # Increase the tree depth if needed
-    ) 
+    ),
+    threads = threading(2), cores = 8, backend = "cmdstanr"
 )
 ```
 
@@ -222,7 +225,7 @@ Filtering the variables and pre-processing the data
 #Issue 2 - Prior sensitivity checks fail as flat priors have infinite k-hat values
 #There was no issue with improper posterior with flat priors
 
-ref_thiomon_formulae_separate <- bf(remission ~ 0 + hgb + hct, family = "bernoulli")
+ref_thiomon_formulae_separate <- bf(remission ~ 0 + hgb + hct + hbghctrat, family = "bernoulli")
 
 thiomon_priors_default_priors_separate <- get_prior(ref_thiomon_formulae_separate, data = sampled_df)
 
@@ -257,7 +260,8 @@ thiomon_data_model_separate <- brm(
     control = list(
       adapt_delta = 0.8,                 # Increase acceptance rate target if needed
       max_treedepth = 20                 # Increase the tree depth if needed
-    ) 
+    ),
+    threads = threading(2), cores = 8, backend = "cmdstanr"
 )
 ```
 
@@ -292,15 +296,20 @@ thiomon_data_model_hier <- brm(
     control = list(
       adapt_delta = 0.8,                 # Increase acceptance rate target if needed
       max_treedepth = 20                 # Increase the tree depth if needed
-    )
+    ),
+    threads = threading(2), cores = 8, backend = "cmdstanr"
 )
 ```
+
+loo_compare(loo(thiomon_data_model_pooled), loo(thiomon_data_model_separate), loo(thiomon_data_model_hier)) \|\>
+
+as.data.frame()
 
 ```{r}
 loo_compare(loo(thiomon_data_model_pooled), loo(thiomon_data_model_separate), loo(thiomon_data_model_hier)) |>
   as.data.frame() |>
   rownames_to_column("model") |>
-  select(elpd_diff, se_diff) |>
+  dplyr::select(model, elpd_diff, se_diff) |>
   tt()
 ```
 
@@ -317,15 +326,24 @@ ph <- thiomon_data_model_hier |>
   ggplot(aes(xdist= 1/(1+exp(-mean_value)), y=hbghctrat)) +
   stat_halfeye() +
   scale_y_continuous(breaks=1:5) +
-  labs(x='Remission ratio', y='Ratio', title='Hierarchical')
+  labs(x='Remission factor', y='hgb/hct Ratio', title='Hierarchical')
+
+ps_part <- thiomon_data_model_separate |> 
+  spread_rvars(b_hgb, b_hct)
+
+ps_part_fin <- ps_part[rep(1:nrow(ps_part), each = 5), ]
 
 ps <- thiomon_data_model_separate |>
-  spread_rvars(b_hgb, b_hct) |>
-  mutate(mean_value = b_hgb + b_hct) |>
-  ggplot(aes(xdist=1/(1+exp(-mean_value)), y=0)) +
+  as_draws_df() |>
+  subset_draws(variable = "b_hbghctrat", regex = TRUE) |>
+  set_variables(paste0('b_hbghctrat[', 1:5, ']')) |>
+  as_draws_rvars() |>
+  spread_rvars(b_hbghctrat[hbghctrat]) |> cbind(ps_part_fin) |>
+  mutate(mean_value = b_hbghctrat + b_hgb + b_hct) |>
+  ggplot(aes(xdist=1/(1+exp(-mean_value)), y=hbghctrat)) +
   stat_halfeye() +
-  scale_y_continuous(breaks=NULL) +
-  labs(x='Remission ratio', y='Across all', title='Separate model')
+  scale_y_continuous(breaks=1:5) +
+  labs(x='Remission factor', y='hgb/hct Ratio', title='Separate')
 
 pp <- thiomon_data_model_pooled |>
   spread_rvars(b_Intercept) |>
@@ -333,8 +351,7 @@ pp <- thiomon_data_model_pooled |>
   ggplot(aes(xdist=1/(1+exp(-mean_value)), y=0)) +
   stat_halfeye() +
   scale_y_continuous(breaks=NULL) +
-  labs(x='Remission ratio', y='Across all', title='Pooled model')
-
+  labs(x='Remission factor', y='Across all', title='Pooled model')
 
 (ph / ps / pp) * xlim(c(0.0,1.0))
 ```
