@@ -5,12 +5,10 @@ rm(list = ls())
 setwd("c:/Users/nguye/OneDrive - Aalto University/University/First year/Project/Bayes_project/")
 # setwd("/notebooks/bda2024/Bayes_project")
 SEED = 42
-
-if (!require(readr)) {
-    install.packages("readr")
-    library(readr)
+if(!require(nnet)) {
+  install.packages("nnet")
+  library(nnet)
 }
-
 if (!require(rstan)) {
     install.packages("rstan")
     library(rstan)
@@ -136,6 +134,16 @@ thiomon <- na.omit(thiomon)
 Correlation Matrix for observation between retransmission and the target variable
 
 ```{r}
+correlation_matrix <- cor(thiomon)
+remission_correlation <- abs(correlation_matrix[, 'remission'])
+remission_correlation <- sort(remission_correlation, decreasing = TRUE)
+#print(remission_correlation)
+df <- data.frame(remission_correlation)
+options(digits = 1)
+print(df)
+```
+
+```{r}
 # From the original paper top-7 recommended parameters from CBC
 #c("hgb", "lymph_percent", "hct","neut_percent", "plt", "alb", "ast")]
 
@@ -165,34 +173,35 @@ source_data["hbghctrat"] <- cut(source_data$hbghctrat, breaks = seq(min(source_d
 
 source_data["hbghctrat"] <- as.character(source_data$hbghctrat)
 
+source_data <- na.omit(source_data)
 #Split data for model fitting and testing separately
-store_data <- source_data[1:4500, ]
+train_data <- source_data[1:4500, ]
 test_data <- source_data[4501:nrow(source_data), ]
 
 # Save the data file so we don't have to process everytime
-save(store_data, file = "thiomon_source_data.rda")
+save(train_data, file = "thiomon_train_data.rda")
 save(test_data, file = "thiomon_test_data.rda")
 ```
 
 ```{r}
 # Sample a subset of the 4500 rows to improve computation time
-NUM_OF_SAMPLES <- 2000
-sampled_df <- source_data[sample(nrow(source_data), NUM_OF_SAMPLES), ]
+NUM_OF_SAMPLES <- 4500
+train_data <- source_data[sample(nrow(source_data), NUM_OF_SAMPLES), ]
 
 # View the sampled data frame if needed
-#print(sampled_df, n=20)
+#print(train_data, n=20)
 ```
 
 ```{r}
 #Purely pooled model
 ref_thiomon_formulae_pooled <- bf(remission ~ 1, family = "bernoulli")
 
-thiomon_priors_default_priors_pooled <- get_prior(ref_thiomon_formulae_pooled, data = sampled_df)
+thiomon_priors_default_priors_pooled <- get_prior(ref_thiomon_formulae_pooled, data = train_data)
 
 thiomon_data_model_pooled <- brm(
     formula = ref_thiomon_formulae_pooled,
     prior = thiomon_priors_default_priors_pooled,
-    data = sampled_df,
+    data = train_data,
     save_pars = save_pars(all = TRUE),
     iter = 2000,
     warmup = 1000,
@@ -228,7 +237,7 @@ Filtering the variables and pre-processing the data
 
 ref_thiomon_formulae_separate <- bf(remission ~ 0 + hgb + hct + hbghctrat, family = "bernoulli")
 
-thiomon_priors_default_priors_separate <- get_prior(ref_thiomon_formulae_separate, data = sampled_df)
+thiomon_priors_default_priors_separate <- get_prior(ref_thiomon_formulae_separate, data = train_data)
 
 #Values of the parameters and their legal values were checked and also tools like fitdist were used
 
@@ -254,7 +263,7 @@ thiomon_priors_default_priors_separate <- get_prior(ref_thiomon_formulae_separat
 thiomon_data_model_separate <- brm(
     formula = ref_thiomon_formulae_separate,
     prior = thiomon_priors_default_priors_separate,
-    data = sampled_df,
+    data = train_data,
     iter = 2000,
     warmup = 1000,
     chains = 4,                           # Number of chains
@@ -271,7 +280,7 @@ Process the data
 ```{r}
 ref_thiomon_formulae_hier <- bf(remission ~ 0 + hgb + hct + (1 | hbghctrat), family = "bernoulli")
 
-thiomon_priors_default_priors_hier <- get_prior(ref_thiomon_formulae_hier, data = sampled_df)
+thiomon_priors_default_priors_hier <- get_prior(ref_thiomon_formulae_hier, data = train_data)
 
 (thiomon_set_priors_informative_hier <- c(
   prior(
@@ -290,7 +299,7 @@ thiomon_priors_default_priors_hier <- get_prior(ref_thiomon_formulae_hier, data 
 thiomon_data_model_hier <- brm(
     formula = ref_thiomon_formulae_hier,
     prior = thiomon_priors_default_priors_hier,
-    data = sampled_df,
+    data = train_data,
     iter = 2000,
     warmup = 1000,
     chains = 4,                           # Number of chains
@@ -303,10 +312,180 @@ thiomon_data_model_hier <- brm(
 
 ```
 
-loo_compare(loo(thiomon_data_model_pooled), loo(thiomon_data_model_separate), loo(thiomon_data_model_hier)) \|\>
 
-as.data.frame()
 
+
+
+
+```{r}
+#Task 0 - Inapplicability of pooled model
+#Why pooled model cannot be used here? With pooled model there is one single global intercept which from the practical point does not make sense as there is no way in which any blood parameter can take the value 0 in real life for humans. We can only experiment with separate models.
+
+#Continue investigations with separate model
+#Task 1: Testing the predictive power of a bayesian model using all the parameters indicated in the research paper
+#The baseline formula uses 100% of the blood parameters
+#thiomon_baseline <- bf(remission ~ 0 + hgb + lymph_percent + hct + neut_percent + plt + alb + ast + alk + mono_percent + rdw + mch + wbc + age + mcv + eos_percent + alt + mpv + baso_percent + gluc + mchc + tbil + cal + prot + un + pot + chlor + co2 + sod + creat, family = "bernoulli")
+
+#The priors are default ones
+#thiomon_priors <- get_prior(thiomon_formulae, data = train_data)
+
+#Purpose of Task 1 is to numerically assess the predictive power of the baseline bayesian model fitting all blood parameters to a bionomial distribution with logit as the outcome to predict the remission status of the disease
+#The model predicts with 66% accuracy (79% in the paper with a machine learning model)
+#For future work section
+#Improve the accuracy of the model by using informative priors,combine
+
+# Calculate predicted probabilities on training data
+train_predicted_probs_pooled <- posterior_predict(thiomon_data_model_pooled, newdata = train_data, draws = 4000, allow_new_levels = TRUE)
+train_mean_probs_pooled <- colMeans(train_predicted_probs_pooled)
+
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_pooled <- roc(train_data$remission, train_mean_probs_pooled)
+optimal_threshold_pooled <- coords(train_roc_curve_pooled, "best", ret = "threshold")
+
+# Predict on test data
+predicted_probs_pooled <- posterior_predict(thiomon_data_model_pooled, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_pooled <- colMeans(predicted_probs_pooled)
+
+# ROC Curve
+roc_curve_pooled <- roc(test_data$remission, mean_probs_pooled)
+plot(roc_curve_pooled, main = "ROC Curve for Separate Model")
+
+# Confusion Matrix
+predicted_classes_pooled <- ifelse(mean_probs_pooled >= optimal_threshold_pooled$threshold, 1, 0)
+conf_matrix_pooled <- confusionMatrix(as.factor(predicted_classes_pooled), as.factor(test_data$remission))
+print(conf_matrix_pooled)
+
+#Report model summary, Rhat, ESS, convergence statistics etc.,
+summary(thiomon_data_model_pooled)
+
+#Check EPLD LOO
+loo(thiomon_data_model_pooled)
+
+#Make PP checks
+pp_check(thiomon_data_model_pooled, type='dens_overlay', ndraws=200)
+pp_check(thiomon_data_model_pooled, type='loo_pit_qq', ndraws=1000)
+pp_check(thiomon_data_model_pooled, type='pit_ecdf', ndraws=1000)
+
+#Test for prior sensitivity
+model_draws <- as_draws_df(thiomon_data_model_pooled)
+
+#Prior sensitivity is not there thanks to informative priors
+powerscale_plot_dens(model_draws, fit=thiomon_data_model_pooled,
+                     help_text=FALSE)
+
+#Also the values look good!
+powerscale_sensitivity(model_draws, fit=thiomon_data_model_pooled) |> tt()
+
+#Summarize the draws
+model_draws |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
+```
+
+```{r}
+# Calculate predicted probabilities on training data
+train_predicted_probs_separate <- posterior_predict(thiomon_data_model_separate, newdata = train_data, draws = 4000, allow_new_levels = TRUE)
+train_mean_probs_separate <- colMeans(train_predicted_probs_separate)
+
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_separate <- roc(train_data$remission, train_mean_probs_separate)
+optimal_threshold_separate <- coords(train_roc_curve_separate, "best", ret = "threshold")
+
+# Predict on test data
+predicted_probs_separate <- posterior_predict(thiomon_data_model_separate, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_separate <- colMeans(predicted_probs_separate)
+
+# ROC Curve
+roc_curve_separate <- roc(test_data$remission, mean_probs_separate)
+plot(roc_curve_separate, main = "ROC Curve for Separate Model")
+
+# Confusion Matrix
+predicted_classes_separate <- ifelse(mean_probs_separate >= optimal_threshold_separate$threshold, 1, 0)
+conf_matrix_separate <- confusionMatrix(as.factor(predicted_classes_separate), as.factor(test_data$remission))
+print(conf_matrix_separate)
+
+#Report model summary, Rhat, ESS, convergence statistics etc.,
+summary(thiomon_data_model_separate)
+
+#Check EPLD LOO
+loo(thiomon_data_model_separate)
+
+#Check if chains converge
+mcmc_trace(thiomon_data_model_separate, pars=c("b_hgb", "b_hct", "b_hbghctrat1", "b_hbghctrat2", "b_hbghctrat3", "b_hbghctrat4", "b_hbghctrat5")) + scale_colour_manual(values=c("#000000", "#E69F00", "#56B4E9", "#009E73"))
+
+#Autocorrelation function?
+
+#Make PP checks
+pp_check(thiomon_data_model_separate, type='dens_overlay', ndraws=200)
+pp_check(thiomon_data_model_separate, type='loo_pit_qq', ndraws=1000)
+pp_check(thiomon_data_model_separate, type='pit_ecdf', ndraws=1000)
+
+#Test for prior sensitivity
+model_draws <- as_draws_df(thiomon_data_model_separate)
+
+#Prior sensitivity is not there thanks to informative priors
+# powerscale_plot_dens(model_draws, fit=thiomon_data_model_separate, help_text=FALSE)
+
+#Also the values look good!
+# powerscale_sensitivity(model_draws, fit=thiomon_data_model_separate) |> tt()
+
+#Summarize the draws
+model_draws |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
+
+as_draws_df(model_draws) |> mcmc_areas(pars=c("b_hgb", "b_hct", "b_hbghctrat1", "b_hbghctrat2", "b_hbghctrat3", "b_hbghctrat4", "b_hbghctrat5"))
+```
+
+```{r}
+# Calculate predicted probabilities on training data
+train_predicted_probs_hierarchical <- posterior_predict(thiomon_data_model_hier, newdata = train_data, draws = 4000, allow_new_levels = TRUE)
+train_mean_probs_hierarchical <- colMeans(train_predicted_probs_hierarchical)
+
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_hierarchical <- roc(train_data$remission, train_mean_probs_hierarchical)
+optimal_threshold_hierarchical <- coords(train_roc_curve_hierarchical, "best", ret = "threshold")
+
+# Predict on test data
+predicted_probs_hierarchical <- posterior_predict(thiomon_data_model_hier, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_hierarchical <- colMeans(predicted_probs_hierarchical)
+
+# ROC Curve
+roc_curve_hierarchical <- roc(test_data$remission, mean_probs_hierarchical)
+plot(roc_curve_hierarchical, main = "ROC Curve for First Model")
+
+# Confusion Matrix
+predicted_classes_hierarchical <- ifelse(mean_probs_hierarchical >= optimal_threshold_hierarchical$threshold, 1, 0)
+conf_matrix_hierarchical <- confusionMatrix(as.factor(predicted_classes_hierarchical), as.factor(test_data$remission))
+print(conf_matrix_hierarchical)
+
+# Report model summary, Rhat, ESS, convergence statistics etc.
+summary(thiomon_data_model_hier)
+
+# Check EPLD LOO
+loo(thiomon_data_model_hier)
+
+# Check if chains converge
+mcmc_trace(thiomon_data_model_hier, pars=c("b_hgb", "b_hct", "sd_hbghctrat__Intercept", "r_hbghctrat[1,Intercept]", "r_hbghctrat[2,Intercept]","r_hbghctrat[3,Intercept]","r_hbghctrat[4,Intercept]","r_hbghctrat[5,Intercept]")) + scale_colour_manual(values=c("#000000", "#E69F00", "#56B4E9", "#009E73"))
+
+# Autocorrelation function?
+
+# Make PP checks
+pp_check(thiomon_data_model_hier, type='dens_overlay', ndraws=200)
+pp_check(thiomon_data_model_hier, type='loo_pit_qq', ndraws=1000)
+pp_check(thiomon_data_model_hier, type='pit_ecdf', ndraws=1000)
+
+# Test for prior sensitivity
+model_draws_hierarchical <- as_draws_df(thiomon_data_model_hier)
+
+# Prior sensitivity is not there thanks to informative priors
+powerscale_plot_dens(model_draws_hierarchical, fit=thiomon_data_model_hier, help_text=FALSE)
+
+# Also the values look good!
+powerscale_sensitivity(model_draws_hierarchical, fit=thiomon_data_model_hier) |>
+  tt()
+
+# Summarize the draws
+model_draws_hierarchical |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
+
+as_draws_df(model_draws_hierarchical) |> mcmc_areas(pars=c("b_hgb", "b_hct", "sd_hbghctrat__Intercept", "r_hbghctrat[1,Intercept]", "r_hbghctrat[2,Intercept]","r_hbghctrat[3,Intercept]","r_hbghctrat[4,Intercept]","r_hbghctrat[5,Intercept]"))
+```
 ```{r}
 loo_compare(loo(thiomon_data_model_pooled), loo(thiomon_data_model_separate), loo(thiomon_data_model_hier)) |>
   as.data.frame() |>
@@ -314,6 +493,7 @@ loo_compare(loo(thiomon_data_model_pooled), loo(thiomon_data_model_separate), lo
   dplyr::select(model, elpd_diff, se_diff) |>
   tt()
 ```
+
 
 ```{r}
 if (!require(patchwork)) {
@@ -358,95 +538,169 @@ pp <- thiomon_data_model_pooled |>
 (ph / ps / pp) * xlim(c(0.0,1.0))
 ```
 
+
+
+
+
 ```{r}
-#Task 0 - Inapplicability of pooled model
-#Why pooled model cannot be used here? With pooled model there is one single global intercept which from the practical point does not make sense as there is no way in which any blood parameter can take the value 0 in real life for humans. We can only experiment with separate models.
+library(e1071)
+library(caret)
 
-#Continue investigations with separate model
-#Task 1: Testing the predictive power of a bayesian model using all the parameters indicated in the research paper
-#The baseline formula uses 100% of the blood parameters
-#thiomon_baseline <- bf(remission ~ 0 + hgb + lymph_percent + hct + neut_percent + plt + alb + ast + alk + mono_percent + rdw + mch + wbc + age + mcv + eos_percent + alt + mpv + baso_percent + gluc + mchc + tbil + cal + prot + un + pot + chlor + co2 + sod + creat, family = "bernoulli")
+model_svm <- svm(remission ~ 0 + days_of_life + wbc + hgb + hct + plt + rbc + mcv + mch + mchc + rdw + mpv + neut_percent + lymph_percent + mono_percent + eos_percent + baso_percent + sod + pot + chlor + co2 + un + creat + gluc + cal + prot + alb + ast + alt + alk + tbil, data = train_data)
 
-#The priors are default ones
-#thiomon_priors <- get_prior(thiomon_formulae, data = sampled_df)
 
-#Purpose of Task 1 is to numerically assess the predictive power of the baseline bayesian model fitting all blood parameters to a bionomial distribution with logit as the outcome to predict the remission status of the disease
-#The model predicts with 66% accuracy (79% in the paper with a machine learning model)
-#For future work section
-#Improve the accuracy of the model by using informative priors,combine
+# Predict probabilities on the training data
+pred_probs_svm <- predict(model_svm, train_data, probability = TRUE)
 
-#Use model for inference, test samples were not used in the model generation
-TEST_SAMPLES = 559
-test_df <- source_data[sample(nrow(source_data), TEST_SAMPLES), ]
+# Generate the ROC curve
+train_roc_curve_svm <- roc(train_data$remission, pred_probs_svm)
 
-# View the sampled data frame
-#print(test_df)
+# Find the optimal threshold
+optimal_threshold_svm <- coords(train_roc_curve_svm, "best", ret = "threshold")
+
+# Apply the threshold to the test_data find
+
+# probs in test_data
+pred_probs_svm_test <- predict(model_svm, test_data, probability = TRUE)
+# Confusion matrix using the optimal_threshold_svm
+pred_classes_svm <- ifelse(pred_probs_svm > optimal_threshold_svm$threshold, 1, 0)
+conf_matrix_svm <- confusionMatrix(as.factor(pred_classes_svm), as.factor(train_data$remission))
+print(conf_matrix_svm)
 
 # Predict probabilities on the test data
-predicted_probs <- posterior_predict(thiomon_data_model_hier, 
-                                     newdata = test_df, draws = 4000)
+pred_probs_svm_test <- predict(model_svm, test_data, probability = TRUE)
+roc_curve_svm <- roc(test_data$remission, pred_probs_svm_test)
 
-# Calculate the mean predicted probabilities for each test sample
-mean_probs <- colMeans(predicted_probs)
-
-# Generate ROC curve
-roc_curve <- roc(test_df$remission, mean_probs)
-plot(roc_curve, main = "ROC Curve")
-
-# Predict classes based on a threshold of 0.5
-predicted_classes <- ifelse(mean_probs >= 0.5, 1, 0)
-
-# Generate confusion matrix
-conf_matrix <- confusionMatrix(as.factor(predicted_classes), as.factor(test_df$remission))
-
-#Convert this to data frame and use tt() for pretty print
-print(conf_matrix)
+# Plot the ROC curve
+plot(roc_curve_svm, main = "ROC Curve for SVM Model")
 ```
 
-thiomon_data_model \<- brm(
+```{r}
+model_glm <- glm(remission ~ 0 + days_of_life + wbc + hgb + hct + plt + rbc + mcv + mch + mchc + rdw + mpv + neut_percent + lymph_percent + mono_percent + eos_percent + baso_percent + sod + pot + chlor + co2 + un + creat + gluc + cal + prot + alb + ast + alt + alk + tbil, data = thiomon)
 
-formula = ref_thiomon_formulae,
+# Predict probabilities on the training data
+pred_probs_glm <- predict(model_glm, train_data, type = "response")
 
-prior = thiomon_priors_default_priors,
+# Generate the ROC curve
+train_roc_curve_glm <- roc(train_data$remission, pred_probs_glm)
 
-data = source_data,
+# Find the optimal threshold
+optimal_threshold_glm <- coords(train_roc_curve_glm, "best", ret = "threshold")
 
-save_pars = save_pars(all = TRUE),
+# Apply the threshold to the test_data find
 
-iter = 2000,
+# probs in test_data
+pred_probs_glm_test <- predict(model_glm, test_data, type = "response") 
+# Confusion matrix using the optimal_threshold_glm
 
-warmup = 1000,
+pred_classes_glm <- ifelse(pred_probs_glm > optimal_threshold_glm$threshold, 1, 0)
+conf_matrix_glm <- confusionMatrix(as.factor(pred_classes_glm), as.factor(train_data$remission))
+print(conf_matrix_glm)
 
-chains = 4, \# Number of chains
+# Predict probabilities on the test data
+pred_probs_glm_test <- predict(model_glm, test_data, type = "response")
+roc_curve_glm <- roc(test_data$remission, pred_probs_glm_test)
 
-control = list(
+# Plot the ROC curve
+plot(roc_curve_glm, main = "ROC Curve for GLM Model")
+```
 
-adapt_delta = 0.8, \# Increase acceptance rate target if needed
+```{r}
 
-max_treedepth = 20 \# Increase the tree depth if needed
+model <- nnet(remission ~ days_of_life + wbc + hgb + hct + plt + rbc + mcv + mch + mchc + rdw + mpv + neut_percent + lymph_percent + mono_percent + eos_percent + baso_percent + sod + pot + chlor + co2 + un + creat + gluc + cal + prot + alb + ast + alt + alk + tbil, data = thiomon, size = 20,    # Number of hidden units 
+maxit = 100)  # For classification
 
-)
+# Predict probabilities on the training data
+pred_probs_nn <- predict(model, train_data, type = "raw")
 
-)
+# Generate the ROC curve
+train_roc_curve_nn <- roc(train_data$remission, pred_probs_nn)
 
-thiomon_data_model \<- brm(
+# Find the optimal threshold
+optimal_threshold_nn <- coords(train_roc_curve_nn, "best", ret = "threshold")
 
-formula = thiomon_formulae,
+# Apply the threshold to the training data
+# pred_classes_glm <- ifelse(pred_probs_glm > optimal_threshold_glm$threshold, 1, 0)
+pred_classes_nn <- ifelse(pred_probs_nn > optimal_threshold_nn$threshold, 1, 0)
+conf_matrix_nn <- confusionMatrix(as.factor(pred_classes_nn), as.factor(train_data$remission))
+print(conf_matrix_nn)
 
-prior = thiomon_priors,
+# Predict probabilities on the test data
+pred_probs_nn_test <- predict(model, test_data, type = "raw")
 
-data = sampled_df,
+# Apply the threshold to the test data
+pred_classes_nn_test <- ifelse(pred_probs_nn_test > optimal_threshold_nn$threshold, 1, 0)
+conf_matrix_nn_test <- confusionMatrix(as.factor(pred_classes_nn_test), as.factor(test_data$remission))
+print(conf_matrix_nn_test)
 
-save_pars = save_pars(all = TRUE),
+# Generate the ROC curve
+roc_curve_nn <- roc(test_data$remission, pred_probs_nn_test)
 
-iter = 2000,
+# Plot the ROC curve
+plot(roc_curve_nn, main = "ROC Curve for Neural Network Model")
+```
 
-warmup = 1000,
+```{r}
+library(pROC)
+library(ggplot2)
 
-chains = 4, \# Number of chains
+# Function to interpolate and smooth ROC curve with jitter
+interpolate_smooth_roc_jitter <- function(roc_curve, n = 100, jitter_amount = 1e-5) {
+  roc_smooth <- smooth(roc_curve)
+  fpr <- seq(0, 1, length.out = n)
+  tpr <- approx(roc_smooth$specificities + runif(length(roc_smooth$specificities), -jitter_amount, jitter_amount), 
+                roc_smooth$sensitivities, xout = fpr)$y
+  data.frame(fpr = fpr, tpr = tpr)
+}
 
-control = list(
+# Calculate and interpolate ROC curves with jitter
+roc_pooled_train <- interpolate_smooth_roc_jitter(train_roc_curve_pooled)
+roc_pooled_test <- interpolate_smooth_roc_jitter(roc_curve_pooled)
+roc_separate_train <- interpolate_smooth_roc_jitter(train_roc_curve_separate)
+roc_separate_test <- interpolate_smooth_roc_jitter(roc_curve_separate)
+roc_hierarchical_train <- interpolate_smooth_roc_jitter(train_roc_curve_hierarchical)
+roc_hierarchical_test <- interpolate_smooth_roc_jitter(roc_curve_hierarchical)
+# glm, svm and nn model too
+roc_glm_train <- interpolate_smooth_roc_jitter(train_roc_curve_glm)
+roc_glm_test <- interpolate_smooth_roc_jitter(roc_curve_glm)
+roc_svm_train <- interpolate_smooth_roc_jitter(train_roc_curve_svm)
+roc_svm_test <- interpolate_smooth_roc_jitter(roc_curve_svm)
+roc_nn_train <- interpolate_smooth_roc_jitter(train_roc_curve_nn)
+roc_nn_test <- interpolate_smooth_roc_jitter(roc_curve_nn)
 
-adapt_delta = 0.8, \# Increase acceptance rate target
+# Calculate AUC values
+auc_pooled_train <- auc(train_roc_curve_pooled)
+auc_pooled_test <- auc(roc_curve_pooled)
+auc_separate_train <- auc(train_roc_curve_separate)
+auc_separate_test <- auc(roc_curve_separate)
+auc_hierarchical_train <- auc(train_roc_curve_hierarchical)
+auc_hierarchical_test <- auc(roc_curve_hierarchical)
+auc_glm_train <- auc(train_roc_curve_glm)
+auc_glm_test <- auc(roc_curve_glm)
+auc_svm_train <- auc(train_roc_curve_svm)
+auc_svm_test <- auc(roc_curve_svm)
+auc_nn_train <- auc(train_roc_curve_nn)
+auc_nn_test <- auc(roc_curve_nn)
 
-max_treedepth = 20 \# Increase the tree depth
+# Combine ROC curves into one data frame
+roc_data <- rbind(
+  data.frame(roc_pooled_train, model = paste("Pool Train (AUC =", round(auc_pooled_train, 4), ")")),
+  data.frame(roc_pooled_test, model = paste("Pool Test (AUC =", round(auc_pooled_test, 4), ")")),
+  data.frame(roc_separate_train, model = paste("Separate Train (AUC =", round(auc_separate_train, 4), ")")),
+  data.frame(roc_separate_test, model = paste("Separate Test (AUC =", round(auc_separate_test, 4), ")")),
+  data.frame(roc_hierarchical_train, model = paste("Hierarchical 1 Train (AUC =", round(auc_hierarchical_train, 4), ")")),
+  data.frame(roc_hierarchical_test, model = paste("Hierarchical 1 Test (AUC =", round(auc_hierarchical_test, 4), ")")),
+  data.frame(roc_glm_train, model = paste("GLM Train (AUC =", round(auc_glm_train, 4), ")")),
+  data.frame(roc_glm_test, model = paste("GLM Test (AUC =", round(auc_glm_test, 4), ")")),
+  data.frame(roc_svm_train, model = paste("SVM Train (AUC =", round(auc_svm_train, 4), ")")),
+  data.frame(roc_svm_test, model = paste("SVM Test (AUC =", round(auc_svm_test, 4), ")")),
+  data.frame(roc_nn_train, model = paste("NN Train (AUC =", round(auc_nn_train, 4), ")")),
+  data.frame(roc_nn_test, model = paste("NN Test (AUC =", round(auc_nn_test, 4), ")"))
+  )
+
+# Plot all ROC curves in one plot
+ggplot(roc_data, aes(x = fpr, y = tpr, color = model)) +
+  geom_line() +
+  labs(title = "ROC Curves for Different Models", x = "False Positive Rate", y = "True Positive Rate") +
+  theme_minimal()
+```
