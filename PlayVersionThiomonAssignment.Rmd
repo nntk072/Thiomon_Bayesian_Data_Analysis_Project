@@ -2,7 +2,8 @@ Environment setup
 
 ```{r}
 rm(list = ls())
-setwd("/notebooks/bda2024/Bayes_project")
+setwd("c:/Users/nguye/OneDrive - Aalto University/University/First year/Project/Bayes_project/")
+# setwd("/notebooks/bda2024/Bayes_project")
 SEED = 42
 
 if (!require(readr)) {
@@ -299,6 +300,7 @@ thiomon_data_model_hier <- brm(
     ),
     threads = threading(2), cores = 8, backend = "cmdstanr"
 )
+
 ```
 
 loo_compare(loo(thiomon_data_model_pooled), loo(thiomon_data_model_separate), loo(thiomon_data_model_hier)) \|\>

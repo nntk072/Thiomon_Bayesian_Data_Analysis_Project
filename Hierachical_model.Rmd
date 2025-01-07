@@ -1,0 +1,1550 @@
+Environment setup
+
+```{r}
+rm(list = ls())
+# setwd("/notebooks/bda2024/Bayes_project")
+setwd("c:/Users/nguye/OneDrive - Aalto University/University/First year/Project/Bayes_project/")
+SEED = 42
+if (!require(readr)) {
+    install.packages("readr")
+    library(readr)
+}
+
+if (!require(rstan)) {
+    install.packages("rstan")
+    library(rstan)
+}
+if (!require(loo)) {
+    install.packages("loo")
+    library(loo)
+}
+if (!require(gridExtra)) {
+    install.packages("gridExtra")
+    library(gridExtra)
+}
+if (!require(grid)) {
+    install.packages("grid")
+    library(grid)
+}
+if (!require(rmarkdown)) {
+    install.packages("rmarkdown")
+    library(rmarkdown)
+}
+
+
+if (!require(tidybayes)) {
+    install.packages("tidybayes")
+    library(tidybayes)
+}
+if (!require(brms)) {
+    install.packages("brms")
+    library(brms)
+}
+if (!require(metadat)) {
+  install.packages("metadat")
+  library(metadat)
+}
+# if(!require(cmdstanr)){
+#     install.packages("cmdstanr", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
+#     library(cmdstanr)
+# }
+# cmdstan_installed <- function(){
+#   res <- try(out <- cmdstanr::cmdstan_path(), silent = TRUE)
+#   !inherits(res, "try-error")
+# }
+# if(!cmdstan_installed()){
+#     install_cmdstan()
+# }
+if(!require(ggplot2)){
+    install.packages("ggplot2")
+    library(ggplot2)
+}
+ggplot2::theme_set(theme_minimal(base_size = 14))
+if(!require(bayesplot)){
+    install.packages("bayesplot")
+    library(bayesplot)
+}
+if(!require(posterior)){
+    install.packages("posterior")
+    library(posterior)
+}
+if (!require(priorsense)) {
+  install.packages("priorsense")
+  library(priorsense)
+}
+if (!require(tibble)) {
+  install.packages("tibble")
+  library(tibble)
+}
+if (!require(RColorBrewer)) {
+  install.packages("RColorBrewer")
+  library(RColorBrewer)
+}
+if (!require(dplyr)) {
+  install.packages("dplyr")
+  library(dplyr)
+}
+if (!require(tinytable)) {
+  install.packages("tinytable")
+  library(tinytable)
+}
+if (!require(pROC)) {
+  install.packages("pROC")
+  library(pROC)
+}
+if (!require(caret)) {
+  install.packages("caret")
+  library(caret)
+}
+options(tinytable_format_num_fmt = "significant_cell", tinytable_format_digits = 2, tinytable_tt_digits=2)
+```
+
+
+Process the data
+
+```{r}
+# Load the saved data frames
+load("thiomon_source_data.rda")
+load("thiomon_test_data.rda")
+
+source_data <- store_data
+
+# Specify the number of rows to sample
+NUM_OF_SAMPLES <- 4500
+
+# Randomly sample rows from the data frame
+train_data <- source_data[sample(nrow(source_data), NUM_OF_SAMPLES), ]
+
+# View the sampled data frame
+print(train_data)
+
+# Extract the 'remission' column
+train_data2 <- train_data["remission"]
+```
+
+```{r}
+# Fit the logistic regression model
+logistic_model <- glm(remission ~ hgb + hct + lymph_percent + neut_percent, data = train_data, family = binomial())
+
+# Summary of the logistic regression model
+summary(logistic_model)
+
+# Predict probabilities on the training data
+train_predicted_probs_logistic <- predict(logistic_model, newdata = train_data, type = "response")
+
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_logistic <- roc(train_data$remission, train_predicted_probs_logistic)
+plot(train_roc_curve_logistic, main = "Train ROC Curve")
+optimal_threshold_logistic <- coords(train_roc_curve_logistic, "best", ret = "threshold")
+
+# Predict probabilities on the test data
+test_predicted_probs_logistic <- predict(logistic_model, newdata = test_data, type = "response")
+
+# ROC Curve for test data
+test_roc_curve_logistic <- roc(test_data$remission, test_predicted_probs_logistic)
+plot(test_roc_curve_logistic, main = "Test ROC Curve")
+
+# Apply the optimal threshold to classify test data
+test_predicted_classes_logistic <- ifelse(test_predicted_probs_logistic >= optimal_threshold_logistic$threshold, 1, 0)
+
+# Confusion Matrix
+conf_matrix_logistic <- confusionMatrix(as.factor(test_predicted_classes_logistic), as.factor(test_data$remission))
+print(conf_matrix_logistic)
+```
+
+``` {r}
+# Define the simple model formula
+simple_formula <- bf(remission ~ 1 + hgb + hct + lymph_percent + neut_percent, family = "bernoulli")
+
+# Get priors for the simple model
+simple_priors <- get_prior(simple_formula, data = train_data)
+
+# Fit the simple model
+simple_model <- brm(
+  formula = simple_formula,
+  data = train_data,
+  prior = simple_priors,
+  iter = 2000,
+  warmup = 1000,
+  chains = 4,
+  control = list(adapt_delta = 0.95, max_treedepth = 15)
+)
+
+# Calculate predicted probabilities on training data
+train_predicted_probs_simple <- posterior_predict(simple_model, newdata = train_data, draws = 1000, allow_new_levels = TRUE)
+train_mean_probs_simple <- colMeans(train_predicted_probs_simple)
+
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_simple <- roc(train_data$remission, train_mean_probs_simple)
+optimal_threshold_simple <- coords(train_roc_curve_simple, "best", ret = "threshold")
+
+# Summarize and plot the simple model
+summary(simple_model)
+plot(simple_model)
+
+# Calculate predicted probabilities on test data
+predicted_probs_simple <- posterior_predict(simple_model, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_simple <- colMeans(predicted_probs_simple)
+
+# Plot ROC Curve for test data
+roc_curve_simple <- roc(test_data$remission, mean_probs_simple)
+plot(roc_curve_simple, main = "ROC Curve")
+
+# Generate Confusion Matrix
+test_predicted_classes_simple <- ifelse(mean_probs_simple >= optimal_threshold_simple$threshold, 1, 0)
+conf_matrix_simple <- confusionMatrix(as.factor(test_predicted_classes_simple), as.factor(test_data$remission))
+print(conf_matrix_simple)
+
+```
+
+
+Hierarchical model
+```{r}
+hierarchical_formula <- bf(remission ~ 1 + hgb + hct + lymph_percent + neut_percent + (1 | age), family = bernoulli())
+
+hierarchical_priors <- c(
+  set_prior("normal(0, 5)", class = "b"),
+  set_prior("student_t(3, 0, 2.5)", class = "Intercept")
+)
+
+hierarchical_model <- brm(
+  formula = hierarchical_formula,
+  data = train_data,
+  prior = hierarchical_priors,
+  iter = 2000,
+  warmup = 1000,
+  chains = 4,
+  control = list(adapt_delta = 0.95, max_treedepth = 15)
+)
+
+summary(hierarchical_model)
+plot(hierarchical_model)
+# Calculate predicted probabilities on training data
+train_predicted_probs_hierarchical <- posterior_predict(hierarchical_model, newdata = train_data, draws = 1000, allow_new_levels = TRUE)
+train_mean_probs_hierarchical <- colMeans(train_predicted_probs_hierarchical)
+
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_hierarchical <- roc(train_data$remission, train_mean_probs_hierarchical)
+optimal_threshold_hierarchical <- coords(train_roc_curve_hierarchical, "best", ret = "threshold")
+
+predicted_probs_hierarchical <- posterior_predict(hierarchical_model, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_hierarchical <- colMeans(predicted_probs_hierarchical)
+
+# ROC Curve
+roc_curve_hierarchical <- roc(test_data$remission, mean_probs_hierarchical)
+plot(roc_curve_hierarchical, main = "ROC Curve")
+
+# Confusion Matrix
+predicted_classes_hierarchical <- ifelse(mean_probs_hierarchical >= optimal_threshold_hierarchical$threshold, 1, 0)
+conf_matrix_hierarchical <- confusionMatrix(as.factor(predicted_classes_hierarchical), as.factor(test_data$remission))
+print(conf_matrix_hierarchical)
+
+# Report model summary, Rhat, ESS, convergence statistics, etc.
+summary(hierarchical_model)
+
+# Check EPLD LOO
+loo(hierarchical_model)
+
+# Check if chains converge
+mcmc_trace(hierarchical_model, pars=c("b_hgb", "b_hct", "b_lymph_percent", "b_neut_percent")) + 
+  scale_colour_manual(values=c("#000000", "#E69F00", "#56B4E9", "#009E73"))
+
+# Autocorrelation function
+mcmc_acf(hierarchical_model, pars=c("b_hgb", "b_hct", "b_lymph_percent", "b_neut_percent"))
+
+# Make posterior predictive checks
+pp_check(hierarchical_model, type='dens_overlay', ndraws=200)
+pp_check(hierarchical_model, type='loo_pit_qq', ndraws=1000)
+pp_check(hierarchical_model, type='pit_ecdf', ndraws=1000)
+
+# Test for prior sensitivity
+model_draws <- as_draws_df(hierarchical_model)
+
+# Prior sensitivity is not there thanks to informative priors
+powerscale_plot_dens(model_draws, fit=hierarchical_model, help_text=FALSE)
+
+# Also the values look good!
+powerscale_sensitivity(model_draws, fit=hierarchical_model) |> tt()
+
+# Summarize the draws
+model_draws |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
+
+as_draws_df(model_draws) |> mcmc_areas(pars=c('b_hgb', 'b_hct', 'b_lymph_percent', 'b_neut_percent'))
+
+
+# Extract random effects
+ranef_hierarchical <- ranef(hierarchical_model)
+
+# Print random effects for age
+print(ranef_hierarchical$age)
+```
+
+```{r}
+hierarchical_formula <- bf(remission ~ 0 + hgb +  hct +  lymph_percent + neut_percent + neut_percent + (1|age), family = bernoulli())
+
+hierarchical_model <- brm(
+  formula = hierarchical_formula,
+  data = train_data,
+  iter = 2000,
+  warmup = 1000,
+  chains = 4,
+  control = list(adapt_delta = 0.95, max_treedepth = 15)
+)
+
+summary(hierarchical_model)
+plot(hierarchical_model)
+# Calculate predicted probabilities on training data
+train_predicted_probs_hierarchical <- posterior_predict(hierarchical_model, newdata = train_data, draws = 1000, allow_new_levels = TRUE)
+train_mean_probs_hierarchical <- colMeans(train_predicted_probs_hierarchical)
+
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_hierarchical <- roc(train_data$remission, train_mean_probs_hierarchical)
+optimal_threshold_hierarchical <- coords(train_roc_curve_hierarchical, "best", ret = "threshold")
+
+predicted_probs_hierarchical <- posterior_predict(hierarchical_model, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_hierarchical <- colMeans(predicted_probs_hierarchical)
+
+# ROC Curve
+roc_curve_hierarchical <- roc(test_data$remission, mean_probs_hierarchical)
+plot(roc_curve_hierarchical, main = "ROC Curve")
+
+# Confusion Matrix
+predicted_classes_hierarchical <- ifelse(mean_probs_hierarchical >= optimal_threshold_hierarchical$threshold, 1, 0)
+conf_matrix_hierarchical <- confusionMatrix(as.factor(predicted_classes_hierarchical), as.factor(test_data$remission))
+print(conf_matrix_hierarchical)
+
+# Report model summary, Rhat, ESS, convergence statistics, etc.
+summary(hierarchical_model)
+
+# Check EPLD LOO
+loo(hierarchical_model)
+
+# Check if chains converge
+mcmc_trace(hierarchical_model, pars=c("b_hgb", "b_hct", "b_lymph_percent", "b_neut_percent")) + 
+  scale_colour_manual(values=c("#000000", "#E69F00", "#56B4E9", "#009E73"))
+
+# Autocorrelation function
+mcmc_acf(hierarchical_model, pars=c("b_hgb", "b_hct", "b_lymph_percent", "b_neut_percent"))
+
+# Make posterior predictive checks
+pp_check(hierarchical_model, type='dens_overlay', ndraws=200)
+pp_check(hierarchical_model, type='loo_pit_qq', ndraws=1000)
+pp_check(hierarchical_model, type='pit_ecdf', ndraws=1000)
+
+# Test for prior sensitivity
+model_draws <- as_draws_df(hierarchical_model)
+
+# Prior sensitivity is not there thanks to informative priors
+powerscale_plot_dens(model_draws, fit=hierarchical_model, help_text=FALSE)
+
+# Also the values look good!
+powerscale_sensitivity(model_draws, fit=hierarchical_model) |> tt()
+
+# Summarize the draws
+model_draws |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
+
+as_draws_df(model_draws) |> mcmc_areas(pars=c('b_hgb', 'b_hct', 'b_lymph_percent', 'b_neut_percent'))
+
+
+# Extract random effects
+ranef_hierarchical <- ranef(hierarchical_model)
+
+# Print random effects for age
+print(ranef_hierarchical$age)
+```
+```{r}
+# Define the model
+hierarchical_formula_age <- bf(remission ~ 0 + hgb + hct + lymph_percent + neut_percent + 
+                               (1 | age), 
+                               family = bernoulli())
+
+# Fit the model
+hierarchical_model_age <- brm(
+  formula = hierarchical_formula_age,
+  data = train_data,
+  iter = 2000,
+  warmup = 1000,
+  chains = 4,
+  control = list(adapt_delta = 0.95, max_treedepth = 15)
+)
+
+# Calculate predicted probabilities on training data
+train_predicted_probs_age <- posterior_predict(hierarchical_model_age, newdata = train_data, draws = 1000, allow_new_levels = TRUE)
+train_mean_probs_age <- colMeans(train_predicted_probs_age)
+
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_age <- roc(train_data$remission, train_mean_probs_age)
+optimal_threshold_age <- coords(train_roc_curve_age, "best", ret = "threshold")
+
+# Predict on test data
+predicted_probs_age <- posterior_predict(hierarchical_model_age, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_age <- colMeans(predicted_probs_age)
+
+# ROC Curve
+roc_curve_age <- roc(test_data$remission, mean_probs_age)
+plot(roc_curve_age, main = "ROC Curve for Age Model")
+
+# Confusion Matrix
+predicted_classes_age <- ifelse(mean_probs_age >= optimal_threshold_age$threshold, 1, 0)
+conf_matrix_age <- confusionMatrix(as.factor(predicted_classes_age), as.factor(test_data$remission))
+print(conf_matrix_age)
+
+# Report model summary
+summary(hierarchical_model_age)
+
+# Define the model
+hierarchical_formula_hgb <- bf(remission ~ 0 + (1 | hgb) + hct + lymph_percent + neut_percent + 
+                               age, 
+                               family = bernoulli())
+
+# Fit the model
+hierarchical_model_hgb <- brm(
+  formula = hierarchical_formula_hgb,
+  data = train_data,
+  iter = 2000,
+  warmup = 1000,
+  chains = 4,
+  control = list(adapt_delta = 0.95, max_treedepth = 15)
+)
+
+# Calculate predicted probabilities on training data
+train_predicted_probs_hgb <- posterior_predict(hierarchical_model_hgb, newdata = train_data, draws = 1000, allow_new_levels = TRUE)
+train_mean_probs_hgb <- colMeans(train_predicted_probs_hgb)
+
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_hgb <- roc(train_data$remission, train_mean_probs_hgb)
+optimal_threshold_hgb <- coords(train_roc_curve_hgb, "best", ret = "threshold")
+
+# Predict on test data
+predicted_probs_hgb <- posterior_predict(hierarchical_model_hgb, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_hgb <- colMeans(predicted_probs_hgb)
+
+# ROC Curve
+roc_curve_hgb <- roc(test_data$remission, mean_probs_hgb)
+plot(roc_curve_hgb, main = "ROC Curve for HGB Model")
+
+# Confusion Matrix
+predicted_classes_hgb <- ifelse(mean_probs_hgb >= optimal_threshold_hgb$threshold, 1, 0)
+conf_matrix_hgb <- confusionMatrix(as.factor(predicted_classes_hgb), as.factor(test_data$remission))
+print(conf_matrix_hgb)
+
+# Report model summary
+summary(hierarchical_model_hgb)
+
+
+# Define the model
+hierarchical_formula_hct <- bf(remission ~ 0 + hgb + (1 | hct) + lymph_percent + neut_percent + 
+                               age, 
+                               family = bernoulli())
+
+# Fit the model
+hierarchical_model_hct <- brm(
+  formula = hierarchical_formula_hct,
+  data = train_data,
+  iter = 2000,
+  warmup = 1000,
+  chains = 4,
+  control = list(adapt_delta = 0.95, max_treedepth = 15)
+)
+
+# Calculate predicted probabilities on training data
+train_predicted_probs_hct <- posterior_predict(hierarchical_model_hct, newdata = train_data, draws = 1000, allow_new_levels = TRUE)
+train_mean_probs_hct <- colMeans(train_predicted_probs_hct)
+
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_hct <- roc(train_data$remission, train_mean_probs_hct)
+optimal_threshold_hct <- coords(train_roc_curve_hct, "best", ret = "threshold")
+
+# Predict on test data
+predicted_probs_hct <- posterior_predict(hierarchical_model_hct, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_hct <- colMeans(predicted_probs_hct)
+
+# ROC Curve
+roc_curve_hct <- roc(test_data$remission, mean_probs_hct)
+plot(roc_curve_hct, main = "ROC Curve for HCT Model")
+
+# Confusion Matrix
+predicted_classes_hct <- ifelse(mean_probs_hct >= optimal_threshold_hct$threshold, 1, 0)
+conf_matrix_hct <- confusionMatrix(as.factor(predicted_classes_hct), as.factor(test_data$remission))
+print(conf_matrix_hct)
+
+# Report model summary
+summary(hierarchical_model_hct)
+
+
+# Define the model
+hierarchical_formula_lymph <- bf(remission ~ 0 + hgb + hct + (1 | lymph_percent) + neut_percent + 
+                                 age, 
+                                 family = bernoulli())
+
+# Fit the model
+hierarchical_model_lymph <- brm(
+  formula = hierarchical_formula_lymph,
+  data = train_data,
+  iter = 2000,
+  warmup = 1000,
+  chains = 4,
+  control = list(adapt_delta = 0.95, max_treedepth = 15)
+)
+
+# Calculate predicted probabilities on training data
+train_predicted_probs_lymph <- posterior_predict(hierarchical_model_lymph, newdata = train_data, draws = 1000, allow_new_levels = TRUE)
+train_mean_probs_lymph <- colMeans(train_predicted_probs_lymph)
+
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_lymph <- roc(train_data$remission, train_mean_probs_lymph)
+optimal_threshold_lymph <- coords(train_roc_curve_lymph, "best", ret = "threshold")
+
+# Predict on test data
+predicted_probs_lymph <- posterior_predict(hierarchical_model_lymph, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_lymph <- colMeans(predicted_probs_lymph)
+
+# ROC Curve
+roc_curve_lymph <- roc(test_data$remission, mean_probs_lymph)
+plot(roc_curve_lymph, main = "ROC Curve for Lymph Percent Model")
+
+# Confusion Matrix
+predicted_classes_lymph <- ifelse(mean_probs_lymph >= optimal_threshold_lymph$threshold, 1, 0)
+conf_matrix_lymph <- confusionMatrix(as.factor(predicted_classes_lymph), as.factor(test_data$remission))
+print(conf_matrix_lymph)
+
+# Report model summary
+summary(hierarchical_model_lymph)
+
+# Define the model
+hierarchical_formula_neut <- bf(remission ~ 0 + hgb + hct + lymph_percent + (1 | neut_percent) + 
+                                age, 
+                                family = bernoulli())
+
+# Fit the model
+hierarchical_model_neut <- brm(
+  formula = hierarchical_formula_neut,
+  data = train_data,
+  iter = 2000,
+  warmup = 1000,
+  chains = 4,
+  control = list(adapt_delta = 0.95, max_treedepth = 15)
+)
+
+# Calculate predicted probabilities on training data
+train_predicted_probs_neut <- posterior_predict(hierarchical_model_neut, newdata = train_data, draws = 1000, allow_new_levels = TRUE)
+train_mean_probs_neut <- colMeans(train_predicted_probs_neut)
+
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_neut <- roc(train_data$remission, train_mean_probs_neut)
+optimal_threshold_neut <- coords(train_roc_curve_neut, "best", ret = "threshold")
+
+# Predict on test data
+predicted_probs_neut <- posterior_predict(hierarchical_model_neut, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_neut <- colMeans(predicted_probs_neut)
+
+# ROC Curve
+roc_curve_neut <- roc(test_data$remission, mean_probs_neut)
+plot(roc_curve_neut, main = "ROC Curve for Neut Percent Model")
+
+# Confusion Matrix
+predicted_classes_neut <- ifelse(mean_probs_neut >= optimal_threshold_neut$threshold, 1, 0)
+conf_matrix_neut <- confusionMatrix(as.factor(predicted_classes_neut), as.factor(test_data$remission))
+print(conf_matrix_neut)
+
+# Report model summary
+summary(hierarchical_model_neut)
+```
+
+```{r}
+# Check EPLD LOO
+loo(hierarchical_model_age)
+
+# Check if chains converge
+mcmc_trace(hierarchical_model_age, pars=c("b_hgb", "b_hct", "b_lymph_percent", "b_neut_percent")) + 
+  scale_colour_manual(values=c("#000000", "#E69F00", "#56B4E9", "#009E73"))
+
+# Autocorrelation function
+mcmc_acf(hierarchical_model_age, pars=c("b_hgb", "b_hct", "b_lymph_percent", "b_neut_percent"))
+
+# Make posterior predictive checks
+pp_check(hierarchical_model_age, type='dens_overlay', ndraws=200)
+pp_check(hierarchical_model_age, type='loo_pit_qq', ndraws=1000)
+pp_check(hierarchical_model_age, type='pit_ecdf', ndraws=1000)
+
+# Test for prior sensitivity
+model_draws_age <- as_draws_df(hierarchical_model_age)
+
+# Prior sensitivity is not there thanks to informative priors
+powerscale_plot_dens(model_draws_age, fit=hierarchical_model_age, help_text=FALSE)
+
+# Also the values look good!
+powerscale_sensitivity(model_draws_age, fit=hierarchical_model_age) |> tt()
+
+# Summarize the draws
+model_draws_age |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
+
+as_draws_df(model_draws_age) |> mcmc_areas(pars=c('b_hgb', 'b_hct', 'b_lymph_percent', 'b_neut_percent'))
+
+# Extract random effects
+ranef_hierarchical_age <- ranef(hierarchical_model_age)
+
+# Print random effects for age
+print(ranef_hierarchical_age$age)
+
+# Check EPLD LOO
+loo(hierarchical_model_hgb)
+
+# Check if chains converge
+mcmc_trace(hierarchical_model_hgb, pars=c("b_age", "b_hct", "b_lymph_percent", "b_neut_percent")) + 
+  scale_colour_manual(values=c("#000000", "#E69F00", "#56B4E9", "#009E73"))
+
+# Autocorrelation function
+mcmc_acf(hierarchical_model_hgb, pars=c("b_age", "b_hct", "b_lymph_percent", "b_neut_percent"))
+
+# Make posterior predictive checks
+pp_check(hierarchical_model_hgb, type='dens_overlay', ndraws=200)
+pp_check(hierarchical_model_hgb, type='loo_pit_qq', ndraws=1000)
+pp_check(hierarchical_model_hgb, type='pit_ecdf', ndraws=1000)
+
+# Test for prior sensitivity
+model_draws_hgb <- as_draws_df(hierarchical_model_hgb)
+
+# Prior sensitivity is not there thanks to informative priors
+powerscale_plot_dens(model_draws_hgb, fit=hierarchical_model_hgb, help_text=FALSE)
+
+# Also the values look good!
+powerscale_sensitivity(model_draws_hgb, fit=hierarchical_model_hgb) |> tt()
+
+# Summarize the draws
+model_draws_hgb |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
+
+as_draws_df(model_draws_hgb) |> mcmc_areas(pars=c('b_age', 'b_hct', 'b_lymph_percent', 'b_neut_percent'))
+
+# Extract random effects
+ranef_hierarchical_hgb <- ranef(hierarchical_model_hgb)
+
+# Print random effects for hgb
+print(ranef_hierarchical_hgb$hgb)
+
+# Check EPLD LOO
+loo(hierarchical_model_hct)
+
+# Check if chains converge
+mcmc_trace(hierarchical_model_hct, pars=c("b_hgb", "b_age", "b_lymph_percent", "b_neut_percent")) + 
+  scale_colour_manual(values=c("#000000", "#E69F00", "#56B4E9", "#009E73"))
+
+# Autocorrelation function
+mcmc_acf(hierarchical_model_hct, pars=c("b_hgb", "b_age", "b_lymph_percent", "b_neut_percent"))
+
+# Make posterior predictive checks
+pp_check(hierarchical_model_hct, type='dens_overlay', ndraws=200)
+pp_check(hierarchical_model_hct, type='loo_pit_qq', ndraws=1000)
+pp_check(hierarchical_model_hct, type='pit_ecdf', ndraws=1000)
+
+# Test for prior sensitivity
+model_draws_hct <- as_draws_df(hierarchical_model_hct)
+
+# Prior sensitivity is not there thanks to informative priors
+powerscale_plot_dens(model_draws_hct, fit=hierarchical_model_hct, help_text=FALSE)
+
+# Also the values look good!
+powerscale_sensitivity(model_draws_hct, fit=hierarchical_model_hct) |> tt()
+
+# Summarize the draws
+model_draws_hct |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
+
+as_draws_df(model_draws_hct) |> mcmc_areas(pars=c('b_hgb', 'b_age', 'b_lymph_percent', 'b_neut_percent'))
+
+# Extract random effects
+ranef_hierarchical_hct <- ranef(hierarchical_model_hct)
+
+# Print random effects for hct
+print(ranef_hierarchical_hct$hct)
+
+# Check EPLD LOO
+loo(hierarchical_model_lymph)
+
+# Check if chains converge
+mcmc_trace(hierarchical_model_lymph, pars=c("b_hgb", "b_hct", "b_age", "b_neut_percent")) + 
+  scale_colour_manual(values=c("#000000", "#E69F00", "#56B4E9", "#009E73"))
+
+# Autocorrelation function
+mcmc_acf(hierarchical_model_lymph, pars=c("b_hgb", "b_hct", "b_age", "b_neut_percent"))
+
+# Make posterior predictive checks
+pp_check(hierarchical_model_lymph, type='dens_overlay', ndraws=200)
+pp_check(hierarchical_model_lymph, type='loo_pit_qq', ndraws=1000)
+pp_check(hierarchical_model_lymph, type='pit_ecdf', ndraws=1000)
+
+# Test for prior sensitivity
+model_draws_lymph <- as_draws_df(hierarchical_model_lymph)
+
+# Prior sensitivity is not there thanks to informative priors
+powerscale_plot_dens(model_draws_lymph, fit=hierarchical_model_lymph, help_text=FALSE)
+
+# Also the values look good!
+powerscale_sensitivity(model_draws_lymph, fit=hierarchical_model_lymph) |> tt()
+
+# Summarize the draws
+model_draws_lymph |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
+
+as_draws_df(model_draws_lymph) |> mcmc_areas(pars=c('b_hgb', 'b_hct', 'b_age', 'b_neut_percent'))
+
+# Extract random effects
+ranef_hierarchical_lymph <- ranef(hierarchical_model_lymph)
+
+# Print random effects for lymph_percent
+print(ranef_hierarchical_lymph$lymph_percent)
+
+# Check EPLD LOO
+loo(hierarchical_model_neut)
+
+# Check if chains converge
+mcmc_trace(hierarchical_model_neut, pars=c("b_hgb", "b_hct", "b_lymph_percent", "b_age")) + 
+  scale_colour_manual(values=c("#000000", "#E69F00", "#56B4E9", "#009E73"))
+
+# Autocorrelation function
+mcmc_acf(hierarchical_model_neut, pars=c("b_hgb", "b_hct", "b_lymph_percent", "b_age"))
+
+# Make posterior predictive checks
+pp_check(hierarchical_model_neut, type='dens_overlay', ndraws=200)
+pp_check(hierarchical_model_neut, type='loo_pit_qq', ndraws=1000)
+pp_check(hierarchical_model_neut, type='pit_ecdf', ndraws=1000)
+
+# Test for prior sensitivity
+model_draws_neut <- as_draws_df(hierarchical_model_neut)
+
+# Prior sensitivity is not there thanks to informative priors
+powerscale_plot_dens(model_draws_neut, fit=hierarchical_model_neut, help_text=FALSE)
+
+# Also the values look good!
+powerscale_sensitivity(model_draws_neut, fit=hierarchical_model_neut) |> tt()
+
+# Summarize the draws
+#model_draws_neut |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws
+```
+
+
+
+```{r}
+# library(pROC)
+# library(ggplot2)
+
+# # Function to interpolate and smooth ROC curve with jitter
+# interpolate_smooth_roc_jitter <- function(roc_curve, n = 100, jitter_amount = 1e-5) {
+#   roc_smooth <- smooth(roc_curve)
+#   fpr <- seq(0, 1, length.out = n)
+#   tpr <- approx(roc_smooth$specificities + runif(length(roc_smooth$specificities), -jitter_amount, jitter_amount), 
+#                 roc_smooth$sensitivities, xout = fpr)$y
+#   data.frame(fpr = fpr, tpr = tpr)
+# }
+
+# # Calculate and interpolate ROC curves with jitter
+# roc_logistic_train <- interpolate_smooth_roc_jitter(train_roc_curve_logistic)
+# roc_logistic_test <- interpolate_smooth_roc_jitter(test_roc_curve_logistic)
+# roc_simple_train <- interpolate_smooth_roc_jitter(train_roc_curve_simple)
+# roc_simple_test <- interpolate_smooth_roc_jitter(roc_curve_simple)
+# roc_hierarchical_train <- interpolate_smooth_roc_jitter(train_roc_curve_hierarchical)
+# roc_hierarchical_test <- interpolate_smooth_roc_jitter(roc_curve_hierarchical)
+
+# # Calculate AUC values
+# auc_logistic_train <- auc(train_roc_curve_logistic)
+# auc_logistic_test <- auc(test_roc_curve_logistic)
+# auc_simple_train <- auc(train_roc_curve_simple)
+# auc_simple_test <- auc(roc_curve_simple)
+# auc_hierarchical_train <- auc(train_roc_curve_hierarchical)
+# auc_hierarchical_test <- auc(roc_curve_hierarchical)
+
+# # Combine ROC curves into one data frame
+# roc_data <- rbind(
+#   data.frame(roc_logistic_train, model = paste("Logistic Train (AUC =", round(auc_logistic_train, 2), ")")),
+#   data.frame(roc_logistic_test, model = paste("Logistic Test (AUC =", round(auc_logistic_test, 2), ")")),
+#   data.frame(roc_simple_train, model = paste("Simple Train (AUC =", round(auc_simple_train, 2), ")")),
+#   data.frame(roc_simple_test, model = paste("Simple Test (AUC =", round(auc_simple_test, 2), ")")),
+#   data.frame(roc_hierarchical_train, model = paste("Hierarchical Train (AUC =", round(auc_hierarchical_train, 2), ")")),
+#   data.frame(roc_hierarchical_test, model = paste("Hierarchical Test (AUC =", round(auc_hierarchical_test, 2), ")"))
+# )
+
+# # Plot all ROC curves in one plot
+# ggplot(roc_data, aes(x = fpr, y = tpr, color = model)) +
+#   geom_line() +
+#   labs(title = "ROC Curves for Different Models", x = "False Positive Rate", y = "True Positive Rate") +
+#   theme_minimal() +
+#   theme(legend.position = "bottom")
+# ```
+```
+
+```{r}
+# Define the model
+hierarchical_formula_age <- bf(remission ~ 0 + hgb + hct + lymph_percent + neut_percent | age, 
+                               family = bernoulli())
+
+# Fit the model
+hierarchical_model_age <- brm(
+  formula = hierarchical_formula_age,
+  data = train_data,
+  iter = 2000,
+  warmup = 1000,
+  chains = 4,
+  control = list(adapt_delta = 0.95, max_treedepth = 15)
+)
+
+# Calculate predicted probabilities on training data
+train_predicted_probs_age <- posterior_predict(hierarchical_model_age, newdata = train_data, draws = 1000, allow_new_levels = TRUE)
+train_mean_probs_age <- colMeans(train_predicted_probs_age)
+
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_age <- roc(train_data$remission, train_mean_probs_age)
+optimal_threshold_age <- coords(train_roc_curve_age, "best", ret = "threshold")
+
+# Predict on test data
+predicted_probs_age <- posterior_predict(hierarchical_model_age, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_age <- colMeans(predicted_probs_age)
+
+# ROC Curve
+roc_curve_age <- roc(test_data$remission, mean_probs_age)
+plot(roc_curve_age, main = "ROC Curve for Age Model")
+
+# Confusion Matrix
+predicted_classes_age <- ifelse(mean_probs_age >= optimal_threshold_age$threshold, 1, 0)
+conf_matrix_age <- confusionMatrix(as.factor(predicted_classes_age), as.factor(test_data$remission))
+print(conf_matrix_age)
+
+# Report model summary
+summary(hierarchical_model_age)
+
+# Check EPLD LOO
+loo(hierarchical_model_age)
+
+# Check if chains converge
+mcmc_trace(hierarchical_model_age, pars=c("b_hgb", "b_hct", "b_lymph_percent", "b_neut_percent")) + 
+  scale_colour_manual(values=c("#000000", "#E69F00", "#56B4E9", "#009E73"))
+
+# Autocorrelation function
+mcmc_acf(hierarchical_model_age, pars=c("b_hgb", "b_hct", "b_lymph_percent", "b_neut_percent"))
+
+# Make posterior predictive checks
+pp_check(hierarchical_model_age, type='dens_overlay', ndraws=200)
+pp_check(hierarchical_model_age, type='loo_pit_qq', ndraws=1000)
+pp_check(hierarchical_model_age, type='pit_ecdf', ndraws=1000)
+
+# Test for prior sensitivity
+model_draws_age <- as_draws_df(hierarchical_model_age)
+
+# Prior sensitivity is not there thanks to informative priors
+powerscale_plot_dens(model_draws_age, fit=hierarchical_model_age, help_text=FALSE)
+
+# Also the values look good!
+powerscale_sensitivity(model_draws_age, fit=hierarchical_model_age) |> tt()
+
+# Summarize the draws
+model_draws_age |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
+
+as_draws_df(model_draws_age) |> mcmc_areas(pars=c('b_hgb', 'b_hct', 'b_lymph_percent', 'b_neut_percent'))
+
+# Extract random effects
+ranef_hierarchical_age <- ranef(hierarchical_model_age)
+
+# Print random effects for age
+print(ranef_hierarchical_age$age)
+
+```
+
+```{r}
+# Define the model
+hierarchical_formula_age <- bf(remission ~ 1 + hgb + hct + lymph_percent + neut_percent + 
+                               (1 + 1 | age), 
+                               family = bernoulli())
+
+# Fit the model
+hierarchical_model_age <- brm(
+  formula = hierarchical_formula_age,
+  data = train_data,
+  iter = 2000,
+  warmup = 1000,
+  chains = 4,
+  control = list(adapt_delta = 0.95, max_treedepth = 15)
+)
+
+# Calculate predicted probabilities on training data
+train_predicted_probs_age <- posterior_predict(hierarchical_model_age, newdata = train_data, draws = 1000, allow_new_levels = TRUE)
+train_mean_probs_age <- colMeans(train_predicted_probs_age)
+
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_age <- roc(train_data$remission, train_mean_probs_age)
+optimal_threshold_age <- coords(train_roc_curve_age, "best", ret = "threshold")
+
+# Predict on test data
+predicted_probs_age <- posterior_predict(hierarchical_model_age, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_age <- colMeans(predicted_probs_age)
+
+# ROC Curve
+roc_curve_age <- roc(test_data$remission, mean_probs_age)
+plot(roc_curve_age, main = "ROC Curve for Age Model")
+
+# Confusion Matrix
+predicted_classes_age <- ifelse(mean_probs_age >= optimal_threshold_age$threshold, 1, 0)
+conf_matrix_age <- confusionMatrix(as.factor(predicted_classes_age), as.factor(test_data$remission))
+print(conf_matrix_age)
+
+# Report model summary
+summary(hierarchical_model_age)
+# Check EPLD LOO
+loo(hierarchical_model_age)
+
+# Check if chains converge
+mcmc_trace(hierarchical_model_age, pars=c("b_hgb", "b_hct", "b_lymph_percent", "b_neut_percent")) + 
+  scale_colour_manual(values=c("#000000", "#E69F00", "#56B4E9", "#009E73"))
+
+# Autocorrelation function
+mcmc_acf(hierarchical_model_age, pars=c("b_hgb", "b_hct", "b_lymph_percent", "b_neut_percent"))
+
+# Make posterior predictive checks
+pp_check(hierarchical_model_age, type='dens_overlay', ndraws=200)
+pp_check(hierarchical_model_age, type='loo_pit_qq', ndraws=1000)
+pp_check(hierarchical_model_age, type='pit_ecdf', ndraws=1000)
+
+# Test for prior sensitivity
+model_draws_age <- as_draws_df(hierarchical_model_age)
+
+# Prior sensitivity is not there thanks to informative priors
+powerscale_plot_dens(model_draws_age, fit=hierarchical_model_age, help_text=FALSE)
+
+# Also the values look good!
+powerscale_sensitivity(model_draws_age, fit=hierarchical_model_age) |> tt()
+
+# Summarize the draws
+model_draws_age |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
+
+as_draws_df(model_draws_age) |> mcmc_areas(pars=c('b_hgb', 'b_hct', 'b_lymph_percent', 'b_neut_percent'))
+
+# Extract random effects
+ranef_hierarchical_age <- ranef(hierarchical_model_age)
+
+# Print random effects for age
+print(ranef_hierarchical_age$age)
+
+```
+
+```{r}
+# Define the model
+hierarchical_formula_age_1 <- bf(remission ~ 0 + s(hgb) + s(hct) + s(lymph_percent) + s(neut_percent) + (1 + 1 | age), 
+                               family = bernoulli())
+
+# Fit the model
+hierarchical_model_age_1 <- brm(
+  formula = hierarchical_formula_age_1,
+  data = train_data,
+  iter = 2000,
+  warmup = 1000,
+  chains = 4,
+  control = list(adapt_delta = 0.95, max_treedepth = 15)
+)
+
+# Calculate predicted probabilities on training data
+train_predicted_probs_age_1 <- posterior_predict(hierarchical_model_age_1, newdata = train_data, draws = 1000, allow_new_levels = TRUE)
+train_mean_probs_age_1 <- colMeans(train_predicted_probs_age_1)
+
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_age_1 <- roc(train_data$remission, train_mean_probs_age_1)
+optimal_threshold_age_1 <- coords(train_roc_curve_age_1, "best", ret = "threshold")
+
+# Predict on test data
+predicted_probs_age_1 <- posterior_predict(hierarchical_model_age_1, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_age_1 <- colMeans(predicted_probs_age_1)
+
+# ROC Curve
+roc_curve_age_1 <- roc(test_data$remission, mean_probs_age_1)
+plot(roc_curve_age_1, main = "ROC Curve for Age Model")
+
+# Confusion Matrix
+predicted_classes_age_1 <- ifelse(mean_probs_age_1 >= optimal_threshold_age_1$threshold, 1, 0)
+conf_matrix_age_1 <- confusionMatrix(as.factor(predicted_classes_age_1), as.factor(test_data$remission))
+print(conf_matrix_age_1)
+
+# Report model summary
+summary(hierarchical_model_age_1)
+# Check EPLD LOO
+loo(hierarchical_model_age_1)
+
+# Check if chains converge
+# variables(hierarchical_model_age_1)
+mcmc_trace(hierarchical_model_age_1, pars=c("bs_shgb_1", "bs_shct_1", "bs_slymph_percent_1", "bs_sneut_percent_1")) + 
+  scale_colour_manual(values=c("#000000", "#E69F00", "#56B4E9", "#009E73"))
+
+# Autocorrelation function
+mcmc_acf(hierarchical_model_age_1, pars=c("bs_shgb_1", "bs_shct_1", "bs_slymph_percent_1", "bs_sneut_percent_1"))
+
+# Make posterior predictive checks
+pp_check(hierarchical_model_age_1, type='dens_overlay', ndraws=200)
+pp_check(hierarchical_model_age_1, type='loo_pit_qq', ndraws=1000)
+pp_check(hierarchical_model_age_1, type='pit_ecdf', ndraws=1000)
+
+# Test for prior sensitivity
+model_draws_age_1 <- as_draws_df(hierarchical_model_age_1)
+
+# Prior sensitivity is not there thanks to informative priors
+powerscale_plot_dens(model_draws_age_1, fit=hierarchical_model_age_1, help_text=FALSE)
+
+# Also the values look good!
+powerscale_sensitivity(model_draws_age_1, fit=hierarchical_model_age_1) |> tt()
+
+# Summarize the draws
+model_draws_age_1 |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
+
+as_draws_df(model_draws_age_1) |> mcmc_areas(pars=c("bs_shgb_1", "bs_shct_1", "bs_slymph_percent_1", "bs_sneut_percent_1"))
+
+# Extract random effects
+ranef_hierarchical_age_1 <- ranef(hierarchical_model_age_1)
+
+# Print random effects for age
+print(ranef_hierarchical_age_1$age)
+```
+
+
+```{r}
+# Define the model
+hierarchical_formula_age <- bf(remission ~ 1 + hgb * hct + lymph_percent + neut_percent + 
+                               (1 + 1 | age), 
+                               family = bernoulli())
+
+# Fit the model
+hierarchical_model_age <- brm(
+  formula = hierarchical_formula_age,
+  data = train_data,
+  iter = 2000,
+  warmup = 1000,
+  chains = 4,
+  control = list(adapt_delta = 0.95, max_treedepth = 15)
+)
+
+# Calculate predicted probabilities on training data
+train_predicted_probs_age <- posterior_predict(hierarchical_model_age, newdata = train_data, draws = 1000, allow_new_levels = TRUE)
+train_mean_probs_age <- colMeans(train_predicted_probs_age)
+
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_age <- roc(train_data$remission, train_mean_probs_age)
+optimal_threshold_age <- coords(train_roc_curve_age, "best", ret = "threshold")
+
+# Predict on test data
+predicted_probs_age <- posterior_predict(hierarchical_model_age, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_age <- colMeans(predicted_probs_age)
+
+# ROC Curve
+roc_curve_age <- roc(test_data$remission, mean_probs_age)
+plot(roc_curve_age, main = "ROC Curve for Age Model")
+
+# Confusion Matrix
+predicted_classes_age <- ifelse(mean_probs_age >= optimal_threshold_age$threshold, 1, 0)
+conf_matrix_age <- confusionMatrix(as.factor(predicted_classes_age), as.factor(test_data$remission))
+print(conf_matrix_age)
+
+# Report model summary
+summary(hierarchical_model_age)
+# Check EPLD LOO
+loo(hierarchical_model_age)
+
+# Check if chains converge
+mcmc_trace(hierarchical_model_age, pars=c("b_hgb", "b_hct", "b_lymph_percent", "b_neut_percent")) + 
+  scale_colour_manual(values=c("#000000", "#E69F00", "#56B4E9", "#009E73"))
+
+# Autocorrelation function
+mcmc_acf(hierarchical_model_age, pars=c("b_hgb", "b_hct", "b_lymph_percent", "b_neut_percent"))
+
+# Make posterior predictive checks
+pp_check(hierarchical_model_age, type='dens_overlay', ndraws=200)
+pp_check(hierarchical_model_age, type='loo_pit_qq', ndraws=1000)
+pp_check(hierarchical_model_age, type='pit_ecdf', ndraws=1000)
+
+# Test for prior sensitivity
+model_draws_age <- as_draws_df(hierarchical_model_age)
+
+# Prior sensitivity is not there thanks to informative priors
+powerscale_plot_dens(model_draws_age, fit=hierarchical_model_age, help_text=FALSE)
+
+# Also the values look good!
+powerscale_sensitivity(model_draws_age, fit=hierarchical_model_age) |> tt()
+
+# Summarize the draws
+model_draws_age |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
+
+as_draws_df(model_draws_age) |> mcmc_areas(pars=c('b_hgb', 'b_hct', 'b_lymph_percent', 'b_neut_percent'))
+
+# Extract random effects
+ranef_hierarchical_age <- ranef(hierarchical_model_age)
+
+# Print random effects for age
+print(ranef_hierarchical_age$age)
+
+```
+
+```{r}
+ref_thiomon_formulae <- bf(remission ~ 0 + hgb + log_siirat + hct + (1 + 1 | deRitisRatio) , family = "bernoulli")
+thiomon_priors_default_priors <- get_prior(ref_thiomon_formulae, data = train_data)
+thiomon_set_priors_informative <- c(
+  prior(
+    normal(10,5),
+    class = "b",
+    coef = "hgb"
+  ),
+  
+  prior(
+    normal(7,1),
+    class = "b",
+    coef = "log_siirat"
+  ),
+  
+
+  prior(
+    normal(35,3),
+    class = "b",
+    coef = "hct"
+  )  
+)
+
+thiomon_data_model <- brm(
+    formula = ref_thiomon_formulae,
+    prior = thiomon_set_priors_informative,
+    data = train_data,
+    save_pars = save_pars(all = TRUE),
+    iter = 2000,
+    warmup = 1000,
+    chains = 4,                           # Number of chains
+    control = list(
+      adapt_delta = 0.8,                 # Increase acceptance rate target if needed
+      max_treedepth = 10                 # Increase the tree depth if needed
+    ) 
+)
+```
+
+```{r}
+#Report model summary, Rhat, ESS, convergence statistics etc.,
+summary(thiomon_data_model)
+
+#Check EPLD LOO
+loo(thiomon_data_model)
+
+#Check if chains converge
+mcmc_trace(thiomon_data_model, pars=c("b_hgb", "b_log_siirat", "b_hct")) + scale_colour_manual(values=c("#000000", "#E69F00", "#56B4E9", "#009E73"))
+
+#Autocorrelation function?
+
+#Make PP checks
+pp_check(thiomon_data_model, type='dens_overlay', ndraws=200)
+pp_check(thiomon_data_model, type='loo_pit_qq', ndraws=1000)
+pp_check(thiomon_data_model, type='pit_ecdf', ndraws=1000)
+
+#Test for prior sensitivity
+model_draws <- as_draws_df(thiomon_data_model)
+
+#Prior sensitivity is not there thanks to informative priors
+powerscale_plot_dens(model_draws, fit=thiomon_data_model,
+                     help_text=FALSE)
+
+#Also the values look good!
+powerscale_sensitivity(model_draws, fit=thiomon_data_model) |>
+  tt()
+
+#Summarize the draws
+model_draws |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
+
+as_draws_df(model_draws) |> mcmc_areas(pars=c('b_hgb', 'b_log_siirat', 'b_hct'))
+```
+
+
+```{r}
+
+
+# Calculate predicted probabilities on training data
+train_predicted_probs_age <- posterior_predict(thiomon_data_model, newdata = train_data, draws = 4000, allow_new_levels = TRUE)
+train_mean_probs_age <- colMeans(train_predicted_probs_age)
+
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_age <- roc(train_data$remission, train_mean_probs_age)
+optimal_threshold_age <- coords(train_roc_curve_age, "best", ret = "threshold")
+
+# Predict on test data
+predicted_probs_age <- posterior_predict(thiomon_data_model, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_age <- colMeans(predicted_probs_age)
+
+# ROC Curve
+roc_curve_age <- roc(test_data$remission, mean_probs_age)
+plot(roc_curve_age, main = "ROC Curve for Age Model")
+
+# Confusion Matrix
+predicted_classes_age <- ifelse(mean_probs_age >= optimal_threshold_age$threshold, 1, 0)
+conf_matrix_age <- confusionMatrix(as.factor(predicted_classes_age), as.factor(test_data$remission))
+print(conf_matrix_age)
+```
+
+```{r}
+ref_thiomon_formulae <- bf(remission ~ 0 + hgb + log_siirat + hct + deRitisRatio, family = "bernoulli")
+thiomon_priors_default_priors <- get_prior(ref_thiomon_formulae, data = train_data)
+(thiomon_set_priors_informative <- c(
+  prior(
+    normal(10,5),
+    class = "b",
+    coef = "hgb"
+  ),
+  
+  prior(
+    normal(7,1),
+    class = "b",
+    coef = "log_siirat"
+  ),
+  
+  prior(
+   normal(1.05,0.175), 
+    class = "b",
+    coef = "deRitisRatio"
+  ),
+
+  prior(
+    normal(35,3),
+    class = "b",
+    coef = "hct"
+  )  
+))
+
+thiomon_data_model <- brm(
+    formula = ref_thiomon_formulae,
+    prior = thiomon_set_priors_informative,
+    data = train_data,
+    save_pars = save_pars(all = TRUE),
+    iter = 2000,
+    warmup = 1000,
+    chains = 4,                           # Number of chains
+    control = list(
+      adapt_delta = 0.8,                 # Increase acceptance rate target if needed
+      max_treedepth = 10                 # Increase the tree depth if needed
+    ) 
+)
+# Calculate predicted probabilities on training data
+train_predicted_probs_age <- posterior_predict(thiomon_data_model, newdata = train_data, draws = 4000, allow_new_levels = TRUE)
+train_mean_probs_age <- colMeans(train_predicted_probs_age)
+
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_age <- roc(train_data$remission, train_mean_probs_age)
+optimal_threshold_age <- coords(train_roc_curve_age, "best", ret = "threshold")
+
+# Predict on test data
+predicted_probs_age <- posterior_predict(thiomon_data_model, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_age <- colMeans(predicted_probs_age)
+
+# ROC Curve
+roc_curve_age <- roc(test_data$remission, mean_probs_age)
+plot(roc_curve_age, main = "ROC Curve for Age Model")
+
+# Confusion Matrix
+predicted_classes_age <- ifelse(mean_probs_age >= optimal_threshold_age$threshold, 1, 0)
+conf_matrix_age <- confusionMatrix(as.factor(predicted_classes_age), as.factor(test_data$remission))
+print(conf_matrix_age)
+```
+
+
+```{r}
+ref_thiomon_formulae <- bf(remission ~ 0 + hgb + log_siirat + hct + deRitisRatio, family = "bernoulli")
+thiomon_priors_default_priors <- get_prior(ref_thiomon_formulae, data = train_data)
+thiomon_set_priors_informative <- c(
+  prior(
+    normal(14.65,1.275),
+    class = "b",
+    coef = "hgb"
+  ),
+  
+  prior(
+    normal(7,1),
+    class = "b",
+    coef = "log_siirat"
+  ),
+  
+
+  prior(
+    normal(43,3.5),
+    class = "b",
+    coef = "hct"
+  ),  
+  prior(
+    normal(1.05,0.175), 
+    class = "b", 
+    coef = "deRitisRatio"
+    )
+  
+)
+
+thiomon_data_model <- brm(
+    formula = ref_thiomon_formulae,
+    prior = thiomon_set_priors_informative,
+    data = train_data,
+    save_pars = save_pars(all = TRUE),
+    iter = 2000,
+    warmup = 1000,
+    chains = 4,                           # Number of chains
+    control = list(
+      adapt_delta = 0.8,                 # Increase acceptance rate target if needed
+      max_treedepth = 15                 # Increase the tree depth if needed
+    ) 
+)
+# Calculate predicted probabilities on training data
+train_predicted_probs_age <- posterior_predict(thiomon_data_model, newdata = train_data, draws = 4000, allow_new_levels = TRUE)
+train_mean_probs_age <- colMeans(train_predicted_probs_age)
+
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_age <- roc(train_data$remission, train_mean_probs_age)
+optimal_threshold_age <- coords(train_roc_curve_age, "best", ret = "threshold")
+
+# Predict on test data
+predicted_probs_age <- posterior_predict(thiomon_data_model, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_age <- colMeans(predicted_probs_age)
+
+# ROC Curve
+roc_curve_age <- roc(test_data$remission, mean_probs_age)
+plot(roc_curve_age, main = "ROC Curve for Age Model")
+
+# Confusion Matrix
+predicted_classes_age <- ifelse(mean_probs_age >= optimal_threshold_age$threshold, 1, 0)
+conf_matrix_age <- confusionMatrix(as.factor(predicted_classes_age), as.factor(test_data$remission))
+print(conf_matrix_age)
+```
+
+```{r}
+ref_thiomon_formulae <- bf(remission ~ 0 + hgb + log_siirat + hct + deRitisRatio + (1|age) , family = "bernoulli")
+thiomon_priors_default_priors <- get_prior(ref_thiomon_formulae, data = train_data)
+thiomon_set_priors_informative <- c(
+  prior(
+    normal(14.65,1.275),
+    class = "b",
+    coef = "hgb"
+  ),
+  
+  prior(
+    normal(7,1),
+    class = "b",
+    coef = "log_siirat"
+  ),
+  
+
+  prior(
+    normal(43,3.5),
+    class = "b",
+    coef = "hct"
+  ),  
+  prior(
+    normal(1.05,0.175), 
+    class = "b", 
+    coef = "deRitisRatio"
+    )
+)
+
+thiomon_data_model <- brm(
+    formula = ref_thiomon_formulae,
+    prior = thiomon_set_priors_informative,
+    data = train_data,
+    save_pars = save_pars(all = TRUE),
+    iter = 2000,
+    warmup = 1000,
+    chains = 4,                           # Number of chains
+    control = list(
+      adapt_delta = 0.8,                 # Increase acceptance rate target if needed
+      max_treedepth = 10                 # Increase the tree depth if needed
+    ) 
+)
+# Calculate predicted probabilities on training data
+train_predicted_probs_age <- posterior_predict(thiomon_data_model, newdata = train_data, draws = 4000, allow_new_levels = TRUE)
+train_mean_probs_age <- colMeans(train_predicted_probs_age)
+
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_age <- roc(train_data$remission, train_mean_probs_age)
+optimal_threshold_age <- coords(train_roc_curve_age, "best", ret = "threshold")
+
+# Predict on test data
+predicted_probs_age <- posterior_predict(thiomon_data_model, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_age <- colMeans(predicted_probs_age)
+
+# ROC Curve
+roc_curve_age <- roc(test_data$remission, mean_probs_age)
+plot(roc_curve_age, main = "ROC Curve for Age Model")
+
+# Confusion Matrix
+predicted_classes_age <- ifelse(mean_probs_age >= optimal_threshold_age$threshold, 1, 0)
+conf_matrix_age <- confusionMatrix(as.factor(predicted_classes_age), as.factor(test_data$remission))
+print(conf_matrix_age)
+```
+
+
+```{r}
+ref_thiomon_formulae <- bf(remission ~ 1 + hgb + log_siirat + hct + deRitisRatio + (1|age) , family = "bernoulli")
+thiomon_priors_default_priors <- get_prior(ref_thiomon_formulae, data = train_data)
+thiomon_set_priors_informative <- c(
+  prior(
+    normal(14.65,1.275),
+    class = "b",
+    coef = "hgb"
+  ),
+  
+  prior(
+    normal(7,1),
+    class = "b",
+    coef = "log_siirat"
+  ),
+  
+
+  prior(
+    normal(43,3.5),
+    class = "b",
+    coef = "hct"
+  ),  
+  prior(
+    normal(1.05,0.175), 
+    class = "b", 
+    coef = "deRitisRatio"
+    )
+)
+
+thiomon_data_model <- brm(
+    formula = ref_thiomon_formulae,
+    prior = thiomon_set_priors_informative,
+    data = train_data,
+    save_pars = save_pars(all = TRUE),
+    iter = 2000,
+    warmup = 1000,
+    chains = 4,                           # Number of chains
+    control = list(
+      adapt_delta = 0.8,                 # Increase acceptance rate target if needed
+      max_treedepth = 15                 # Increase the tree depth if needed
+    ) 
+)
+# Calculate predicted probabilities on training data
+train_predicted_probs_age <- posterior_predict(thiomon_data_model, newdata = train_data, draws = 4000, allow_new_levels = TRUE)
+train_mean_probs_age <- colMeans(train_predicted_probs_age)
+
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_age <- roc(train_data$remission, train_mean_probs_age)
+optimal_threshold_age <- coords(train_roc_curve_age, "best", ret = "threshold")
+
+# Predict on test data
+predicted_probs_age <- posterior_predict(thiomon_data_model, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_age <- colMeans(predicted_probs_age)
+
+# ROC Curve
+roc_curve_age <- roc(test_data$remission, mean_probs_age)
+plot(roc_curve_age, main = "ROC Curve for Age Model")
+
+# Confusion Matrix
+predicted_classes_age <- ifelse(mean_probs_age >= optimal_threshold_age$threshold, 1, 0)
+conf_matrix_age <- confusionMatrix(as.factor(predicted_classes_age), as.factor(test_data$remission))
+print(conf_matrix_age)
+```
+
+```{r}
+ref_thiomon_formulae <- bf(remission ~ 0 + hgb + log_siirat + hct + deRitisRatio + (1+ 1|age) , family = "bernoulli")
+thiomon_priors_default_priors <- get_prior(ref_thiomon_formulae, data = train_data)
+thiomon_set_priors_informative <- c(
+  prior(
+    normal(14.65,1.275),
+    class = "b",
+    coef = "hgb"
+  ),
+  
+  prior(
+    normal(7,1),
+    class = "b",
+    coef = "log_siirat"
+  ),
+  
+
+  prior(
+    normal(43,3.5),
+    class = "b",
+    coef = "hct"
+  ),  
+  prior(
+    normal(1.05,0.175), 
+    class = "b", 
+    coef = "deRitisRatio"
+    )
+)
+
+thiomon_data_model <- brm(
+    formula = ref_thiomon_formulae,
+    prior = thiomon_set_priors_informative,
+    data = train_data,
+    save_pars = save_pars(all = TRUE),
+    iter = 2000,
+    warmup = 1000,
+    chains = 4,                           # Number of chains
+    control = list(
+      adapt_delta = 0.8,                 # Increase acceptance rate target if needed
+      max_treedepth = 15                 # Increase the tree depth if needed
+    ) 
+)
+# Calculate predicted probabilities on training data
+train_predicted_probs_age <- posterior_predict(thiomon_data_model, newdata = train_data, draws = 4000, allow_new_levels = TRUE)
+train_mean_probs_age <- colMeans(train_predicted_probs_age)
+
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_age <- roc(train_data$remission, train_mean_probs_age)
+optimal_threshold_age <- coords(train_roc_curve_age, "best", ret = "threshold")
+
+# Predict on test data
+predicted_probs_age <- posterior_predict(thiomon_data_model, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_age <- colMeans(predicted_probs_age)
+
+# ROC Curve
+roc_curve_age <- roc(test_data$remission, mean_probs_age)
+plot(roc_curve_age, main = "ROC Curve for Age Model")
+
+# Confusion Matrix
+predicted_classes_age <- ifelse(mean_probs_age >= optimal_threshold_age$threshold, 1, 0)
+conf_matrix_age <- confusionMatrix(as.factor(predicted_classes_age), as.factor(test_data$remission))
+print(conf_matrix_age)
+```
+
+```{r}
+ref_thiomon_formulae <- bf(remission ~ 0 + (hgb | hct) + log_siirat  + deRitisRatio + (1|age) , family = "bernoulli")
+thiomon_priors_default_priors <- get_prior(ref_thiomon_formulae, data = train_data)
+thiomon_set_priors_informative <- c(
+  prior(
+    normal(7,1),
+    class = "b",
+    coef = "log_siirat"
+  ),
+  
+  prior(
+    normal(1.05,0.175), 
+    class = "b", 
+    coef = "deRitisRatio"
+    )
+)
+
+thiomon_data_model <- brm(
+    formula = ref_thiomon_formulae,
+    prior = thiomon_set_priors_informative,
+    data = train_data,
+    save_pars = save_pars(all = TRUE),
+    iter = 2000,
+    warmup = 1000,
+    chains = 4,                           # Number of chains
+    control = list(
+      adapt_delta = 0.8,                 # Increase acceptance rate target if needed
+      max_treedepth = 10                 # Increase the tree depth if needed
+    ) 
+)
+# Calculate predicted probabilities on training data
+train_predicted_probs_age <- posterior_predict(thiomon_data_model, newdata = train_data, draws = 4000, allow_new_levels = TRUE)
+train_mean_probs_age <- colMeans(train_predicted_probs_age)
+
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_age <- roc(train_data$remission, train_mean_probs_age)
+optimal_threshold_age <- coords(train_roc_curve_age, "best", ret = "threshold")
+
+# Predict on test data
+predicted_probs_age <- posterior_predict(thiomon_data_model, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_age <- colMeans(predicted_probs_age)
+
+# ROC Curve
+roc_curve_age <- roc(test_data$remission, mean_probs_age)
+plot(roc_curve_age, main = "ROC Curve for Age Model")
+
+# Confusion Matrix
+predicted_classes_age <- ifelse(mean_probs_age >= optimal_threshold_age$threshold, 1, 0)
+conf_matrix_age <- confusionMatrix(as.factor(predicted_classes_age), as.factor(test_data$remission))
+print(conf_matrix_age)
+```
+
