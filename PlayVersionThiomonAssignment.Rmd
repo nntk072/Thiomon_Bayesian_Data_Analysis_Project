@@ -2,8 +2,8 @@ Environment setup
 
 ```{r}
 rm(list = ls())
-setwd("c:/Users/nguye/OneDrive - Aalto University/University/First year/Project/Bayes_project/")
-# setwd("/notebooks/bda2024/Bayes_project")
+# setwd("c:/Users/nguye/OneDrive - Aalto University/University/First year/Project/Bayes_project/")
+setwd("/notebooks/bda2024/Bayes_project")
 SEED = 42
 if(!require(nnet)) {
   install.packages("nnet")
@@ -693,9 +693,9 @@ roc_data <- rbind(
   data.frame(roc_glm_train, model = paste("GLM Train (AUC =", round(auc_glm_train, 4), ")")),
   data.frame(roc_glm_test, model = paste("GLM Test (AUC =", round(auc_glm_test, 4), ")")),
   data.frame(roc_svm_train, model = paste("SVM Train (AUC =", round(auc_svm_train, 4), ")")),
-  data.frame(roc_svm_test, model = paste("SVM Test (AUC =", round(auc_svm_test, 4), ")")),
-  data.frame(roc_nn_train, model = paste("NN Train (AUC =", round(auc_nn_train, 4), ")")),
-  data.frame(roc_nn_test, model = paste("NN Test (AUC =", round(auc_nn_test, 4), ")"))
+  data.frame(roc_svm_test, model = paste("SVM Test (AUC =", round(auc_svm_test, 4), ")"))
+  #data.frame(roc_nn_train, model = paste("NN Train (AUC =", round(auc_nn_train, 4), ")")),
+  #data.frame(roc_nn_test, model = paste("NN Test (AUC =", round(auc_nn_test, 4), ")"))
   )
 
 # Plot all ROC curves in one plot

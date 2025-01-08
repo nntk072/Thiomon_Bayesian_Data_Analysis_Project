@@ -129,88 +129,87 @@ suppressPackageStartupMessages(library(posterior))
 
 \newpage
 
+(This is an example of using reference)
+This study explores the use of machine learning algorithms for predicting clinical outcomes with thiopurines [@10.1093/ecco-jcc/jjx014].
+you can change the sections/subsections/name according to your idea
+
 # 1. Introduction
 
+# 1.1. Motivation
+
+# 1.2. Problem Statement
+
+# 1.3. Main Modeling Summary
 
 # 2. Data: Thiomon Dataset
 
+## 2.1. Data description
+
+## 2.2. Data preprocessing 
+Variable Selection includes here
+
+# 3. Priors
+
+## 3.1. Variables characteristics
+Showing that the data follow normal distribution
+## 3.2. Variables prior description 
+Choosing by mean/std
+
+# 4. Models
+
+## 4.1. Pooled model
+
+## 4.2. Separate model
+
+## 4.3. Hierarchical model
+
+## 4.4. Non-Bayesian model
 
 
-## 2.1. Data Preprocessing 
-# Load necessary library
-```{r}
-library(readr)
-df <- read_csv('thiomon.csv')
-df <- df %>% select(-active)
-df <- na.omit(df)
-correlation_matrix <- cor(df)
-# print(correlation_matrix)
-remission_correlation <- abs(correlation_matrix[, 'remission'])
-remission_correlation <- sort(remission_correlation, decreasing = TRUE)
-print(remission_correlation)
-```
-This study explores the use of machine learning algorithms for predicting clinical outcomes with thiopurines [@10.1093/ecco-jcc/jjx014].
-This study explores the use of machine learning algorithms for predicting clinical outcomes with thiopurines [@10.1093/ecco-jcc/jjx014].
+# 5. Convergence diagnostics
 
-# 3. Models
+## 5.1. $\widehat{R}$
 
-# 4. Priors
+## 5.2. Effective sample size
 
-## 4.1. Separate model
+## 5.3. Divergent transitions  
 
-## 4.2. Hierarchical model
+## 5.4. Conclusion about convergence
 
-# 5. Fitting the Stan models
+# 6. Posterior predictive checks 
 
-## 5.1. Separate model  
+## 6.1. Separate Model
 
-## 5.2. Hierarchical model  
+## 6.2. Hierarchical Model
 
-# 6. Convergence diagnostics
+# 7. Predictive Performance Assessment
 
-## 6.1. $\widehat{R}$
+## 7.1. Model accuracy and Confusion matrix
 
-## 6.2. Effective sample size
+## 7.2. ROC curves and AUC values
 
-## 6.3. Divergent transitions  
+## 8. Sensitivity Analysis
 
-## 6.4. Conclusion about convergence
+# 9. Discussion of Issues and Potential Improvements
 
-## 6.5. Improving convergence
+# 10. Conclusion
 
-# 7. Posterior predictive checks 
+# 11. Self-Reflection
 
-# 8. Model comparison with LOO-CV
-
-# 9. Predictive performance assessment
-
-# 10. Sensitivity analysis
-
-## 10.1. LOO-CV
-
-### 10.1.1. Separate model
-
-### 10.1.2. Hierarchical model
-
-## 10.2. Posterior distributions
-
-# 11. Discussion of issues and potential improvements
-
-# 13. Self-reflection
-
+## 11.1. Group Learning
+## 11.2. Self Learning
 # Appendix
 
 ## A. Stan code
 
-### A.1. Separate model
+### A.1. Pooled model
 
-### A.2. Hierarchical model
+### A.2. Separate model
+
+### A.3. Hierarchical model
 
 ## B. Loaded packages
 
 
 # References
-```{r include=FALSE}
-# render("BDA_report_withcode.Rmd", output_format = "pdf_document")
 
-```
