@@ -281,7 +281,7 @@ train_data <- source_data[sample(MAX_DATA_SAMPLES, NUM_DATA_SAMPLES), ]
 test_data <- source_data[4001:5000, ]
 ```
 
-We choose 500 samples for fitting the model and 1K samples for checking the model performance.
+We choose 1K samples for fitting the model and 1K samples for checking the model performance.
 
 # 3. Priors
 
@@ -323,6 +323,10 @@ thiomon_data_model_pooled <- brm(
 )
 ```
 
+There are no divergent transactions found. Let's check for some model related diagnostics.
+
+### 4.1.1 R-hat and Effective Sample Size (ESS)
+
 First checking the model for any discrepancies in R-hat and ESS.
 
 ```{r}
@@ -331,11 +335,15 @@ thiomon_data_model_pooled
 
 R-hat and effective sample sizes look good. At convergence also R-hat value is 1 means the chains have converged well.
 
+### 4.1.2 Pareto k-hat
+
 ```{r}
 loo(thiomon_data_model_pooled)
 ```
 
 There are no Pareto k-hat estimated greater than 0.7 which is good.
+
+### 4.1.3 Choosing the prior
 
 Continuing with checks on prior, justification for the chosen prior is that the default prior 'student_t(3, 0, 2.5)' is almost equivalent to a 'normal(0, 1.5)' but we find that the underlying 'theta' of the distribution is '0.48' which allows us to make a narrower choice.
 
@@ -347,6 +355,8 @@ data.frame(theta = plogis(rnorm(n=20000, mean=0, sd=1.0))) |>
 ```
 
 It seems it is a correct choice as there is no conflict revealed from the prior diagnostics.
+
+### 4.1.4 Posterior prior sensitivity
 
 ```{r}
 thiomon_data_model_pooled |>
@@ -366,6 +376,8 @@ Posterior predictive checks seem fine as well. Density overlay seems to fit well
 pp_check(thiomon_data_model_pooled, type = 'dens_overlay', ndraws = 200)
 ```
 
+### 4.1.5 Posterior predictive checking
+
 LOO-PIT check seems fine as well.
 
 ```{r}
@@ -378,6 +390,8 @@ LOO-PIT ECDF is within the blue recommendation.
 pp_check(thiomon_data_model_pooled, type = 'pit_ecdf', ndraws = 4000)
 ```
 
+### 4.1.6 Model parameters
+
 Value of the population intercept 'alpha' is estimated at 0.14. We exclude the likelihood parameters.
 
 ```{r}
@@ -386,7 +400,7 @@ as_draws_df(thiomon_data_model_pooled)  |> subset_draws(variable=c('lprior','lp_
 
 ## 4.2. Separate model
 
-Try with the separate model.
+Try with the separate model. Let's try with the sample one below:
 
 ```{r}
 ref_thiomon_formulae_separate <- bf(remission ~ 0 + hgb + hct + hbghctrat, family = "bernoulli")
@@ -428,6 +442,8 @@ thiomon_data_model_separate <- brm(
 )
 ```
 
+### 4.2.1 Checking if the covariates are normally distributed
+
 ```{r}
 train_data |>
   ggplot(aes(x = hgb)) + xlim(c(0,50)) +
@@ -447,6 +463,8 @@ train_data |>
 Both the parameters demonstrate a normal distribution around their respective means. We can approximate with normal distribution for all the parameters.
 
 We don't use flat priors as they are uninformative and we have lots of data to give us good reference values. Also with flat priors, posterior prior checking tools due to input containing infinite or NA values as there is a constant tail. We notice also that the entire population parameters are assigned the same priors. We want to change it. Also notice that we don't have population level Intercept.
+
+### 4.2.2 Resolving problem of prior sensitivity
 
 With our chosen priors, we see a strong prior prior sensitivity. Power-scaling with cumulative Jensen-Shannon distance diagnostic indicates prior-data conflict.
 
@@ -503,6 +521,8 @@ thiomon_data_model_separate <- brm(
 
 And the prior-data conflicts have indeed gone. Lesson learnt and also validates the fundamental concept of Bayesian statistics - one can indeed learn from the posterior of the prior and use that information as a guide to tune the prior.
 
+### 4.2.3 R-hat and Effective Sample Size (ESS)
+
 First checking the model for any discrepancies in R-hat and ESS before proceeding any further.
 
 ```{r}
@@ -514,6 +534,8 @@ R-hat and effective sample sizes look good. At convergence also R-hat value is 1
 ```{r}
 loo(thiomon_data_model_separate)
 ```
+
+### 4.2.4 Issue with Pareto K-hat and solution
 
 We get warnings about 1 Pareto k \> 0.7 in PSIS-LOO. We can improve the accuracy be running MCMC for these LOO folds. We use the following function to store the LOO computation results. The model is fit one time again excluding 1 observation.
 
@@ -528,6 +550,8 @@ loo(thiomon_data_model_separate)
 The Pareto k-estimates indicate there are no observations which have k \> 0.7.
 
 Posterior predictive checks seem fine as well. Density overlay seems to fit well.
+
+### 4.2.5 Posterior predictive checking
 
 ```{r}
 pp_check(thiomon_data_model_separate, type = 'dens_overlay', ndraws = 200)
@@ -545,18 +569,12 @@ LOO-PIT ECDF is within the blue recommendation.
 pp_check(thiomon_data_model_separate, type = 'pit_ecdf', ndraws = 4000)
 ```
 
+### 4.2.6 Model parameters
+
 The slopes for 'hgb', 'hct' and the 'hgb/hct' ratios can be listed using the following
 
 ```{r}
 as_draws_df(thiomon_data_model_separate)  |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
-```
-
-```{r}
-loo_compare(loo(thiomon_data_model_pooled), loo(thiomon_data_model_separate)) |>
-  as.data.frame() |>
-  rownames_to_column("model") |>
-  dplyr::select(model, elpd_diff, se_diff) |>
-  tt()
 ```
 
 The separate model should perform better than the pooled model.
@@ -605,10 +623,16 @@ thiomon_data_model_hier <- brm(
 )
 ```
 
+### 4.3.1 R-hat and Effective Sample Size (ESS)
+
+R-hat and ESS values look good. Convergence at the end of the run indicates R-hat is 1.0 which means samples are reliable and can be used for inference. Also posterior prior sensitivity is well adjusted.
+
 ```{r}
 thiomon_data_model_hier |>
   powerscale_sensitivity()
 ```
+
+### 4.3.2 Issue with Pareto K-hat and solution
 
 ```{r}
 loo(thiomon_data_model_hier)
@@ -618,15 +642,87 @@ loo(thiomon_data_model_hier)
 thiomon_data_model_hier <- add_criterion(thiomon_data_model_hier, criterion='loo', reloo=TRUE)
 ```
 
+### 4.3.3 LOO-PIT check
+
 ```{r}
 pp_check(thiomon_data_model_hier, type = 'loo_pit_qq', ndraws = 4000)
 ```
 
+Try to see if a better hierarchical model fits. The 'sd' prior required a bit of tweaking. Keeping it wider results in 1 divergent transaction which we try to avoid by making it narrow but not quite narrow that we get a prior-data conflict. With this balancing there are no problems we spot.
+
 ```{r}
+ref_thiomon_formulae_hier_1 <- bf(remission ~ 1 + (1 | hbghctrat), family = "bernoulli")
+
+thiomon_priors_default_priors_hier_1 <- get_prior(ref_thiomon_formulae_hier_1, data = train_data)
+
+thiomon_set_priors_informative_hier_1 <- c(
+  
+  prior(
+    normal(0,1.5),
+    class = "Intercept",
+  ),
+
+  prior(
+    normal(1,1.2),
+    class = "sd"
+  )
+)
+
+thiomon_data_model_hier_1 <- brm(
+    formula = ref_thiomon_formulae_hier_1,
+    prior = thiomon_set_priors_informative_hier_1,
+    data = train_data,
+    iter = 2000,
+    warmup = 1000,
+    chains = 4,                           # Number of chains
+    control = list(
+      adapt_delta = 0.9,                 # Increase acceptance rate target if needed
+      max_treedepth = 20                 # Increase the tree depth if needed
+    ),
+    threads = threading(2), cores = 8, backend = "cmdstanr"
+)
+```
+
+There is no issue anymore of prior sensitivity.
+
+```{r}
+thiomon_data_model_hier_1 |>
+  powerscale_sensitivity()
+```
+
+## 4.4 Pooled, Separate and Hierarchical model comparision
+
+### 4.4.1 LOO comparing all the 4 models
+
+```{r}
+loo_compare(loo(thiomon_data_model_pooled), loo(thiomon_data_model_separate),loo(thiomon_data_model_hier), loo(thiomon_data_model_hier_1)) |>
+  as.data.frame() |>
+  rownames_to_column("model") |>
+  dplyr::select(model, elpd_diff, se_diff) |>
+  tt()
+```
+
+The best performing model is the baseline hierarchical model followed by the separate, hierarchical model_1 and finally the pooled. The results seem logical due to the following reasons.
+
+### 4.3.2 Model posterior distributions
+
+```{r}
+if (!require(patchwork)) {
+  install.packages("patchwork")
+  library(patchwork)
+}
 
 ph <- thiomon_data_model_hier |>
   spread_rvars(b_hgb, b_hct, r_hbghctrat[hbghctrat,]) |>
   mutate(mean_value = b_hgb + b_hct + r_hbghctrat) |>
+  ggplot(aes(xdist= inv_logit_scaled(mean_value), y=hbghctrat)) +
+  stat_halfeye() +
+  scale_y_continuous(breaks=1:5) +
+  labs(x='Remission factor', y='hgb/hct Ratio', title='Hierarchical')
+
+ph1 <- thiomon_data_model_hier_1 |>
+  spread_rvars(b_Intercept, r_hbghctrat[hbghctrat,]) |>
+  mutate(mean_value = b_Intercept + r_hbghctrat) |>
   ggplot(aes(xdist= inv_logit_scaled(mean_value), y=hbghctrat)) +
   stat_halfeye() +
   scale_y_continuous(breaks=1:5) +
@@ -657,26 +753,31 @@ pp <- thiomon_data_model_pooled |>
   scale_y_continuous(breaks=NULL) +
   labs(x='Remission factor', y='Across all', title='Pooled model')
 
-(ph / ps / pp) * xlim(c(0.0,1.0))
+#(ph / ph1 / ps / pp) * xlim(c(0.0,1.0))
+(ph) * xlim(c(0.0,0.2))
 ```
+
+### 4.3.3 Bayes and LOO R2 checks
 
 ## 4.4. Non-Bayesian model
 
-# 5. Convergence diagnostics
+**[I propose to remove this as we have too much content already in my opinion]**
 
-## 5.1. $\widehat{R}$
+# ~~5. Convergence diagnostics~~
 
-## 5.2. Effective sample size
+## ~~5.1.~~ $\widehat{R}$
 
-## 5.3. Divergent transitions
+## ~~5.2. Effective sample size~~
 
-## 5.4. Conclusion about convergence
+## ~~5.3. Divergent transitions~~
 
-# 6. Posterior predictive checks
+## ~~5.4. Conclusion about convergence~~
 
-## 6.1. Separate Model
+# ~~6. Posterior predictive checks~~
 
-## 6.2. Hierarchical Model
+## ~~6.1. Separate Model~~
+
+## ~~6.2. Hierarchical Model~~
 
 # 7. Predictive Performance Assessment
 
@@ -684,7 +785,7 @@ pp <- thiomon_data_model_pooled |>
 
 ## 7.2. ROC curves and AUC values
 
-## 8. Sensitivity Analysis
+## ~~8. Sensitivity Analysis~~
 
 # 9. Discussion of Issues and Potential Improvements
 
