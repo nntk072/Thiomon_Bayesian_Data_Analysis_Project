@@ -312,11 +312,6 @@ thiomon_data_model_hier <- brm(
 
 ```
 
-
-
-
-
-
 ```{r}
 #Task 0 - Inapplicability of pooled model
 #Why pooled model cannot be used here? With pooled model there is one single global intercept which from the practical point does not make sense as there is no way in which any blood parameter can take the value 0 in real life for humans. We can only experiment with separate models.
@@ -486,6 +481,7 @@ model_draws_hierarchical |> subset_draws(variable=c('lprior','lp__'), exclude=TR
 
 as_draws_df(model_draws_hierarchical) |> mcmc_areas(pars=c("b_hgb", "b_hct", "sd_hbghctrat__Intercept", "r_hbghctrat[1,Intercept]", "r_hbghctrat[2,Intercept]","r_hbghctrat[3,Intercept]","r_hbghctrat[4,Intercept]","r_hbghctrat[5,Intercept]"))
 ```
+
 ```{r}
 loo_compare(loo(thiomon_data_model_pooled), loo(thiomon_data_model_separate), loo(thiomon_data_model_hier)) |>
   as.data.frame() |>
@@ -493,7 +489,6 @@ loo_compare(loo(thiomon_data_model_pooled), loo(thiomon_data_model_separate), lo
   dplyr::select(model, elpd_diff, se_diff) |>
   tt()
 ```
-
 
 ```{r}
 if (!require(patchwork)) {
@@ -537,10 +532,6 @@ pp <- thiomon_data_model_pooled |>
 
 (ph / ps / pp) * xlim(c(0.0,1.0))
 ```
-
-
-
-
 
 ```{r}
 library(e1071)
