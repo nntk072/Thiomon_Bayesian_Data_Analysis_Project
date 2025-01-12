@@ -298,11 +298,31 @@ source_data <- na.omit(source_data)
 MAX_DATA_SAMPLES <- 4000
 
 #Number of samples for the likelihood
-NUM_DATA_SAMPLES <- 1000
-train_data <- source_data[sample(MAX_DATA_SAMPLES, NUM_DATA_SAMPLES), ]
+NUM_DATA_SAMPLES <- 2000
+train_data_norm <- source_data[sample(MAX_DATA_SAMPLES, NUM_DATA_SAMPLES), ]
 
 #Number of samples for the testing
 test_data <- source_data[4001:5000, ]
+
+NUM_DATA_SAMPLES_ALT = 40
+
+temp_var <- source_data[source_data$hgbrat == 1,]
+train_data_alt <- temp_var[sample(nrow(temp_var), NUM_DATA_SAMPLES_ALT), ]
+
+temp_var <- source_data[source_data$hgbrat == 2,]
+train_data_alt <- rbind(train_data_alt, temp_var[sample(nrow(temp_var), NUM_DATA_SAMPLES_ALT), ])
+
+temp_var <- source_data[source_data$hgbrat == 3,]
+train_data_alt <- rbind(train_data_alt, temp_var[sample(nrow(temp_var), NUM_DATA_SAMPLES_ALT), ])
+
+temp_var <- source_data[source_data$hgbrat == 4,]
+train_data_alt <- rbind(train_data_alt, temp_var[sample(nrow(temp_var), NUM_DATA_SAMPLES_ALT), ])
+
+temp_var <- source_data[source_data$hgbrat == 5,]
+train_data_alt <- rbind(train_data_alt, temp_var[sample(nrow(temp_var), NUM_DATA_SAMPLES_ALT), ])
+
+#Set it to our alternate data set
+train_data <- train_data_norm
 ```
 
 ### 2.2.1 Identifying variables for our modelling
@@ -318,8 +338,8 @@ There are 30 blood parameters which are identified by the database. Using the ML
 
 #From paper's reco
 #residual sd = 0.46, R-Squared = 0.60
-#lm_formula <- remission ~ 0 + hgb + lymph_percent + hct + neut_percent + plt + alb + 
-# ast + hbghctratnum
+lm_formula <- remission ~ 0 + hgb + lymph_percent + hct + neut_percent + plt + alb + 
+ast
 
 lm1 <- lm(formula = lm_formula, data = train_data)
 display(lm1)
@@ -344,7 +364,7 @@ plot(fitg_cv, stats = c('elpd', 'rmse'))
 (vsel <- solution_terms(fitg_cv)[1:nsel])
 ```
 
-The model with covariates definitely has a better EPLD compared to the base model. Going through the exercise, the 'hgb' and 'lymph_percent' seem the dominant variables and they have 58% explanatory power.
+The model with covariates definitely has a better EPLD compared to the base model and hence having covariates in our bayesian model definitely make sense. Going through the exercise, the 'hgb' and 'lymph_percent' seem the dominant variables and they have 58% explanatory power [Ref: <https://users.aalto.fi/~ave/modelselection/mesquite.html>].
 
 ```{r}
 lm_formula <- remission ~ 0 + hgb + lymph_percent
@@ -355,13 +375,13 @@ display(lm1)
 
 We continue with this choice further in our model fitting and also remember that 'lymph_percent' adds only 1% more explanatory power overall, so we may also decide to drop it.
 
-We choose 1K samples for fitting the model and 1K samples for checking the model performance.
+To allow for slope and intercept to be defined in the separate and hierarchical models, we need to distribute 'hgb' into N classes across the range of values. Furthermore, to ensure that the number of data samples are same in each class (otherwise the likelihood statistic will force a larger variance), we sample each class and pick M samples. Hence the total number of samples for our study become M x N.
 
 # 3. Priors
 
 ## 3.1. Variables characteristics
 
-Showing that the data follow normal distribution \## 3.2. Variables prior description Choosing by mean/std
+**[Long please copy content from section 4 to this section as you wish]** Showing that the data follow normal distribution \## 3.2. Variables prior description Choosing by mean/std
 
 # 4. Models
 
@@ -397,7 +417,7 @@ thiomon_data_model_pooled <- brm(
 )
 ```
 
-There are no divergent transactions found. Let's check for some model related diagnostics.
+There are no divergent transactions reported. Let's check for some model related diagnostics.
 
 ### 4.1.1 R-hat and Effective Sample Size (ESS)
 
@@ -415,7 +435,7 @@ R-hat and effective sample sizes look good. At convergence also R-hat value is 1
 loo(thiomon_data_model_pooled)
 ```
 
-There are no Pareto k-hat estimated greater than 0.7 which is good.
+There are no Pareto k-hat estimated greater than 0.7 which is what we desire.
 
 ### 4.1.3 Choosing the prior
 
@@ -490,7 +510,7 @@ conf_matrix <- confusionMatrix(as.factor(predicted_classes), as.factor(test_data
 print(conf_matrix)
 ```
 
-The pooled model is 57.2% accurate.
+The pooled model is x% accurate.
 
 ## 4.2. Separate model
 
@@ -553,7 +573,7 @@ We don't use flat priors as they are uninformative and we have lots of data to g
 
 ### 4.2.2 Checking prior sensitivity
 
-With our chosen priors, we expect to see no prior prior sensitivity. Power-scaling with cumulative Jensen-Shannon distance diagnostic indicates no prior-data conflict.
+With our chosen priors (we used the default priors first and then used the posterior of the slopes to judge what we need), we expect to see no prior prior sensitivity and we are right. Power-scaling with cumulative Jensen-Shannon distance diagnostic indicates no prior-data conflict.
 
 ```{r}
 thiomon_data_model_separate |>
@@ -585,13 +605,13 @@ loo(thiomon_data_model_separate)
 loo(thiomon_data_model_separate)
 ```
 
+In case there are complaints about Pareto k-estimates, we use the following command and refit the model by removing the observations causing the conflict. Here the model was refit 1 times as there was 1 value with value between 0.7 and 1.
+
 ```{r}
 thiomon_data_model_separate <- add_criterion(thiomon_data_model_separate, criterion='loo', reloo=TRUE)
 ```
 
-The Pareto k-estimates indicate there are no observations which have k \> 0.7. Model has been refit 1 time.
-
-Posterior predictive checks seem fine as well. Density overlay seems to fit well.
+The Pareto k-estimates indicate there are no observations which have k \> 0.7. Posterior predictive checks seem fine as well. Density overlay seems to fit well.
 
 ### 4.2.5 Posterior predictive checking
 
@@ -605,7 +625,7 @@ LOO-PIT check seems fine as well.
 pp_check(thiomon_data_model_separate, type = 'loo_pit_qq', ndraws = 4000)
 ```
 
-LOO-PIT ECDF is within the blue recommendation.
+LOO-PIT ECDF is within the recommendation.
 
 ```{r}
 pp_check(thiomon_data_model_separate, type = 'pit_ecdf', ndraws = 4000)
@@ -618,8 +638,6 @@ The slopes for the covariates can be listed using the following
 ```{r}
 as_draws_df(thiomon_data_model_separate)  |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
 ```
-
-The separate model should perform better than the pooled model.
 
 ```{r}
 # Predict probabilities on the test data
@@ -641,7 +659,7 @@ print(conf_matrix)
 
 ## 4.3. Hierarchical model
 
-Let's try a hierarchical model.
+Let's try a hierarchical model. In 'hier_1' there is no global intercept but in 'hier_2' there is.
 
 ```{r}
 ref_thiomon_formulae_hier_1 <- bf(remission ~ 0 + lymph_percent + (1 | hgbrat), family = "bernoulli")
@@ -651,7 +669,7 @@ thiomon_priors_default_priors_hier_1 <- get_prior(ref_thiomon_formulae_hier_1, d
 thiomon_set_priors_informative_hier_1 <- c(
   
   prior(
-    normal(2,2),
+    normal(2.5,4),
     class = "sd"
   ),
   
@@ -676,6 +694,8 @@ thiomon_data_model_hier_1 <- brm(
     threads = threading(2), cores = 8, backend = "cmdstanr"
 )
 ```
+
+Note we have also set an informative prior on the Intercept as flat priors cause problems in loo checking due to Pareto K-hat values.
 
 ```{r}
 ref_thiomon_formulae_hier_2 <- bf(remission ~ 1 + lymph_percent + (1 | hgbrat), family = "bernoulli")
@@ -721,24 +741,30 @@ thiomon_data_model_hier_2 <- brm(
 R-hat and ESS values look good. Convergence at the end of the run indicates R-hat is 1.0 which means samples are reliable and can be used for inference. Also posterior prior sensitivity is well adjusted.
 
 ```{r}
-thiomon_data_model_hier |>
+thiomon_data_model_hier_1 |>
   powerscale_sensitivity()
 ```
+
+The prior sensitivity caused some issues for us. There were a few divergent transactions reported (less than 10) but R-hat values were \<= 1.01 for all the parameters. Also the model reported R-hat values converged at the end of the simulation. When there are those many divergent transactions, we could have fixed them by increasing the 'adapt_delta' but we choose to check the priors and see if they could be tuned. When tuned too tight the diagnostic would reveal a prior-data conflict and when too wide it would complain about likelihood and prior conflict. We had to iterate to get the best balance of reducing the divergent transactions and the prior conflict. The values -1.5 for Intercept and 1.5 for sd are testament to this iterative checking.
+
+The following commands are generic for both the hierarchical model choices. We continue with hier_1 as both the models have almost same EPLD value (negligible difference as expected).
 
 ### 4.3.2 Issue with Pareto K-hat and solution
 
 ```{r}
-loo(thiomon_data_model_hier)
+loo(thiomon_data_model_hier_1)
 ```
 
+Since there were no values with problematic K-hat the following is not required.
+
 ```{r}
-thiomon_data_model_hier_2 <- add_criterion(thiomon_data_model_hier_2, criterion='loo', reloo=TRUE)
+thiomon_data_model_hier_1 <- add_criterion(thiomon_data_model_hier_1, criterion='loo', reloo=TRUE)
 ```
 
 ### 4.3.3 LOO-PIT check
 
 ```{r}
-pp_check(thiomon_data_model_hier, type = 'loo_pit_qq', ndraws = 4000)
+pp_check(thiomon_data_model_hier_1, type = 'loo_pit_qq', ndraws = 4000)
 ```
 
 Try to see if a better hierarchical model fits. The 'sd' prior required a bit of tweaking. Keeping it wider results in 1 divergent transaction which we try to avoid by making it narrow but not quite narrow that we get a prior-data conflict. With this balancing there are no problems we spot.
@@ -775,7 +801,7 @@ loo_compare(loo(thiomon_data_model_pooled), loo(thiomon_data_model_separate), lo
   tt()
 ```
 
-The best performing model is the baseline hierarchical model followed by the separate, hierarchical model_1 and finally the pooled. The results seem logical due to the following reasons.
+The best performing model is the hierarchical, closely followed by separate with hardly much difference in EPLD (less than 0.5) and finally the pooled (with a EPLD score 18 points below both of the hierarchical and separate models).
 
 ### 4.3.2 Model posterior distributions
 
@@ -827,15 +853,39 @@ pp <- thiomon_data_model_pooled |>
   scale_y_continuous(breaks=NULL) +
   labs(x='Remission factor', y='Across all', title='Pooled model')
 
-(ph1 / ph2 / ps / pp) * xlim(c(0.0,1.0))
+(ph1 / ps / pp) * xlim(c(0.0,1.0))
 
 ```
 
+The reasons are mostly clear - the separate and hierarchical models perform almost the same but the pooled model does not factor in any covariates and hence only relies on the remission bits as information and hence it has poor predictive power. The close performance of the separate and hierarchical models is due to the fact that the patients segregated by the 'hgbrat' do share some information mutually in the hierarchical model but this is not much which means that the predicted remissions are not widely varying.
+
 ### 4.3.3 Bayes and LOO R2 checks
+
+```{r}
+#Pooled model
+loo_R2(thiomon_data_model_pooled)
+bayes_R2(thiomon_data_model_pooled)
+
+#Separate model
+loo_R2(thiomon_data_model_separate)
+bayes_R2(thiomon_data_model_separate)
+
+#Hierarchical model 1
+loo_R2(thiomon_data_model_hier_1)
+bayes_R2(thiomon_data_model_hier_1)
+
+#Hierarchical model 2
+loo_R2(thiomon_data_model_hier_2)
+bayes_R2(thiomon_data_model_hier_2)
+```
+
+The pooled model has negligible values as they don't have any covariates factored in. The separate and hierarchical models do have 14% and 15% explanatory power of the variance of the data. Again this shows the separate and hierarchical models do not differ much here.
+
+The LOO-R2 and Bayes-R2 values both match for all the models indicating that there is no likely over-fitting or under-fitting of the data.
 
 ## 4.4. Non-Bayesian model
 
-**[I propose to remove this as we have too much content already in my opinion]**
+**[Long] Please help filling this section.**
 
 # ~~5. Convergence diagnostics~~
 
