@@ -1,14 +1,16 @@
 ---
 title: "Thiomon Data Analysis Report"
-author: "Anonymous"
-output: 
-  pdf_document: 
+author: "Long Nguyen and Amaanat Ali"
+output:
+  html_document:
+    toc: yes
+    toc_depth: '5'
+    df_print: paged
+  pdf_document:
     toc: yes
     toc_depth: 5
-bibliography: references.bib 
+bibliography: references.bib
 csl: vancouver.csl
-editor_options: 
-  chunk_output_type: console
 ---
 
 ```{r include=FALSE}
@@ -129,11 +131,6 @@ if (!require(corrplot)) {
   library(corrplot)
 }
 
-if (!require(rstanarm)) {
-  install.packages("rstanarm")
-  library(rstanarm)
-}
-
 if (!require(arm)) {
   install.packages("arm")
   library(arm)
@@ -147,8 +144,7 @@ if (!require(projpred)) {
 options(tinytable_format_num_fmt = "significant_cell", tinytable_format_digits = 2, tinytable_tt_digits=2)
 ```
 
-```{r include=FALSE}
-suppressPackageStartupMessages(library(nnet))
+```{suppressPackageStartupMessages(library(nnet))}
 suppressPackageStartupMessages(library(loo))
 suppressPackageStartupMessages(library(rstan))
 suppressPackageStartupMessages(library(dplyr))
@@ -329,8 +325,7 @@ train_data <- train_data_norm
 
 There are 30 blood parameters which are identified by the database. Using the MLE algorithm 'lm', we can quickly check that all of these variables together explain 66% of the variability in the data set. Unfortunately, using all of them are computationally inefficient and will take long times to fit a bayesian model. Hence we need to prune the list down.
 
-```{r}
-#lm_formula <- remission ~ 0 + days_of_life + wbc + hgb + hct + plt + rbc + mcv + mch + mchc + rdw + mpv + lymph_percent + neut_percent + mono_percent + eos_percent + baso_percent + sod + pot + chlor + co2 + un + creat + gluc + cal + prot + alb + ast + alt + alk + tbil
+```{#lm_formula <- remission ~ 0 + days_of_life + wbc + hgb + hct + plt + rbc + mcv + mch + mchc + rdw + mpv + lymph_percent + neut_percent + mono_percent + eos_percent + baso_percent + sod + pot + chlor + co2 + un + creat + gluc + cal + prot + alb + ast + alt + alk + tbil}
 #residual sd = 0.44, R-Squared = 0.66
 
 #residual sd = 0.47, R-Squared = 0.60
@@ -366,8 +361,7 @@ plot(fitg_cv, stats = c('elpd', 'rmse'))
 
 The model with covariates definitely has a better EPLD compared to the base model and hence having covariates in our bayesian model definitely make sense. Going through the exercise, the 'hgb' and 'lymph_percent' seem the dominant variables and they have 58% explanatory power [Ref: <https://users.aalto.fi/~ave/modelselection/mesquite.html>].
 
-```{r}
-lm_formula <- remission ~ 0 + hgb + lymph_percent
+```{lm_formula <- remission ~ 0 + hgb + lymph_percent}
 
 lm1 <- lm(formula = lm_formula, data = train_data)
 display(lm1)
@@ -389,7 +383,7 @@ To allow for slope and intercept to be defined in the separate and hierarchical 
 
 Make a basic pooled model.
 
-```{r}
+```{r warning=FALSE, message=FALSE}
 ref_thiomon_formulae_pooled <- bf(remission ~ 1, family = "bernoulli")
 
 thiomon_priors_default_priors_pooled <- get_prior(ref_thiomon_formulae_pooled, data = train_data)
@@ -516,7 +510,7 @@ The pooled model is x% accurate.
 
 Try with the separate model. Let's try with the sample one below using the recommended parameters from above section:
 
-```{r}
+```{r warning=FALSE, message=FALSE}
 ref_thiomon_formulae_separate <- bf(remission ~ 0 + hgbrat + lymph_percent, family = "bernoulli")
 
 thiomon_priors_default_priors_separate <- get_prior(ref_thiomon_formulae_separate, data = train_data)
@@ -661,7 +655,7 @@ print(conf_matrix)
 
 Let's try a hierarchical model. In 'hier_1' there is no global intercept but in 'hier_2' there is.
 
-```{r}
+```{r warning=FALSE, message=FALSE}
 ref_thiomon_formulae_hier_1 <- bf(remission ~ 0 + lymph_percent + (1 | hgbrat), family = "bernoulli")
 
 thiomon_priors_default_priors_hier_1 <- get_prior(ref_thiomon_formulae_hier_1, data = train_data)
@@ -697,7 +691,7 @@ thiomon_data_model_hier_1 <- brm(
 
 Note we have also set an informative prior on the Intercept as flat priors cause problems in loo checking due to Pareto K-hat values.
 
-```{r}
+```{r warning=FALSE, message=FALSE}
 ref_thiomon_formulae_hier_2 <- bf(remission ~ 1 + lymph_percent + (1 | hgbrat), family = "bernoulli")
 
 thiomon_priors_default_priors_hier_2 <- get_prior(ref_thiomon_formulae_hier_2, data = train_data)
@@ -861,22 +855,22 @@ The reasons are mostly clear - the separate and hierarchical models perform almo
 
 ### 4.3.3 Bayes and LOO R2 checks
 
-```{r}
+```{r warning=FALSE}
 #Pooled model
-loo_R2(thiomon_data_model_pooled)
-bayes_R2(thiomon_data_model_pooled)
+loo_R2_pooled <- loo_R2(thiomon_data_model_pooled)
+Bayes_R2_pooled <- bayes_R2(thiomon_data_model_pooled)
 
 #Separate model
-loo_R2(thiomon_data_model_separate)
-bayes_R2(thiomon_data_model_separate)
+loo_R2_separate <- loo_R2(thiomon_data_model_separate)
+Bayes_R2_separate <- bayes_R2(thiomon_data_model_separate)
 
 #Hierarchical model 1
-loo_R2(thiomon_data_model_hier_1)
-bayes_R2(thiomon_data_model_hier_1)
+loo_R2_hier_1 <- loo_R2(thiomon_data_model_hier_1)
+Bayes_R2_hier_1 <- bayes_R2(thiomon_data_model_hier_1)
 
 #Hierarchical model 2
-loo_R2(thiomon_data_model_hier_2)
-bayes_R2(thiomon_data_model_hier_2)
+loo_R2_hier_2 <-loo_R2(thiomon_data_model_hier_2)
+Bayes_R2_hier_2 <-bayes_R2(thiomon_data_model_hier_2)
 ```
 
 The pooled model has negligible values as they don't have any covariates factored in. The separate and hierarchical models do have 14% and 15% explanatory power of the variance of the data. Again this shows the separate and hierarchical models do not differ much here.
