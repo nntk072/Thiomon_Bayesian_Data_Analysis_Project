@@ -2,8 +2,8 @@ Environment setup
 
 ```{r}
 rm(list = ls())
-# setwd("c:/Users/nguye/OneDrive - Aalto University/University/First year/Project/Bayes_project/")
-setwd("/notebooks/bda2024/Bayes_project")
+setwd("c:/Users/nguye/OneDrive - Aalto University/University/First year/Project/Bayes_project/")
+# setwd("/notebooks/bda2024/Bayes_project")
 SEED = 42
 if(!require(nnet)) {
   install.packages("nnet")
@@ -43,10 +43,6 @@ if (!require(brms)) {
     library(brms)
 }
 
-if (!require(metadat)) {
-  install.packages("metadat")
-  library(metadat)
-}
 
 if(!require(cmdstanr)){
     install.packages("cmdstanr", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
@@ -88,26 +84,15 @@ if (!require(tibble)) {
   library(tibble)
 }
 
-if (!require(RColorBrewer)) {
-  install.packages("RColorBrewer")
-  library(RColorBrewer)
-}
-
 if (!require(dplyr)) {
   install.packages("dplyr")
   library(dplyr)
-}
-
-if (!require(tinytable)) {
-  install.packages("tinytable")
-  library(tinytable)
 }
 
 if (!require(pROC)) {
   install.packages("pROC")
   library(pROC)
 }
-
 if (!require(caret)) {
   install.packages("caret")
   library(caret)
@@ -116,6 +101,14 @@ if (!require(caret)) {
 if(!require(fitdistrplus)){
     install.packages("fitdistrplus", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
     library(fitdistrplus)
+}
+if(!require(e1071)) {
+  install.packages("e1071")
+  library(e1071)
+}
+if(!require(caret)) {
+  install.packages("caret")
+  library(caret)
 }
 
 options(tinytable_format_num_fmt = "significant_cell", tinytable_format_digits = 2, tinytable_tt_digits=2)
@@ -534,8 +527,6 @@ pp <- thiomon_data_model_pooled |>
 ```
 
 ```{r}
-library(e1071)
-library(caret)
 
 model_svm <- svm(remission ~ 0 + days_of_life + wbc + hgb + hct + plt + rbc + mcv + mch + mchc + rdw + mpv + neut_percent + lymph_percent + mono_percent + eos_percent + baso_percent + sod + pot + chlor + co2 + un + creat + gluc + cal + prot + alb + ast + alt + alk + tbil, data = train_data)
 
@@ -632,8 +623,7 @@ plot(roc_curve_nn, main = "ROC Curve for Neural Network Model")
 ```
 
 ```{r}
-library(pROC)
-library(ggplot2)
+
 
 # Function to interpolate and smooth ROC curve with jitter
 interpolate_smooth_roc_jitter <- function(roc_curve, n = 100, jitter_amount = 1e-5) {

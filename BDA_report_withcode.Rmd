@@ -13,10 +13,11 @@ bibliography: references.bib
 csl: vancouver.csl
 ---
 
+
 ```{r include=FALSE}
-setwd("/notebooks/bda2024/Bayes_project/Bayes_project")
-# setwd("C:/Users/nguyenl37/Downloads/Bayes_project/")
-# setwd("C:/Users/nguye/OneDrive - Aalto University/University/First year/Project/Bayes_project")
+suppressWarnings({
+# setwd("/notebooks/bda2024/Bayes_project/Bayes_project")
+setwd("C:/Users/nguye/OneDrive - Aalto University/University/First year/Project/Bayes_project")
 SEED = 42
 if(!require(nnet)) {
   install.packages("nnet")
@@ -140,29 +141,19 @@ if (!require(projpred)) {
   install.packages("projpred")
   library(projpred)
 }
-
+if(!require(e1071)) {
+  install.packages("e1071")
+  library(e1071)
+}
+if(!require(caret)) {
+  install.packages("caret")
+  library(caret)
+}
 options(tinytable_format_num_fmt = "significant_cell", tinytable_format_digits = 2, tinytable_tt_digits=2)
+})
 ```
 
-```{suppressPackageStartupMessages(library(nnet))}
-suppressPackageStartupMessages(library(loo))
-suppressPackageStartupMessages(library(rstan))
-suppressPackageStartupMessages(library(dplyr))
-suppressPackageStartupMessages(library(ggplot2))
-suppressPackageStartupMessages(library(bayesplot))
-suppressPackageStartupMessages(library(gridExtra))
-suppressPackageStartupMessages(library(grid))
-suppressPackageStartupMessages(library(rmarkdown))
-suppressPackageStartupMessages(library(brms))
-suppressPackageStartupMessages(library(cmdstanr))
-suppressPackageStartupMessages(library(priorsense))
-suppressPackageStartupMessages(library(tibble))
-suppressPackageStartupMessages(library(RColorBrewer))
-suppressPackageStartupMessages(library(dplyr))
-suppressPackageStartupMessages(library(posterior))
-suppressPackageStartupMessages(library(caret))
-suppressPackageStartupMessages(library(pROC))
-```
+
 
 \newpage
 
@@ -371,15 +362,9 @@ We continue with this choice further in our model fitting and also remember that
 
 To allow for slope and intercept to be defined in the separate and hierarchical models, we need to distribute 'hgb' into N classes across the range of values. Furthermore, to ensure that the number of data samples are same in each class (otherwise the likelihood statistic will force a larger variance), we sample each class and pick M samples. Hence the total number of samples for our study become M x N.
 
-# 3. Priors
+# 3. Models
 
-## 3.1. Variables characteristics
-
-**[Long please copy content from section 4 to this section as you wish]** Showing that the data follow normal distribution \## 3.2. Variables prior description Choosing by mean/std
-
-# 4. Models
-
-## 4.1. Pooled model
+## 3.1. Pooled model
 
 Make a basic pooled model.
 
@@ -413,7 +398,7 @@ thiomon_data_model_pooled <- brm(
 
 There are no divergent transactions reported. Let's check for some model related diagnostics.
 
-### 4.1.1 R-hat and Effective Sample Size (ESS)
+### 3.1.1 R-hat and Effective Sample Size (ESS)
 
 First checking the model for any discrepancies in R-hat and ESS.
 
@@ -423,7 +408,7 @@ thiomon_data_model_pooled
 
 R-hat and effective sample sizes look good. At convergence also R-hat value is 1 means the chains have converged well.
 
-### 4.1.2 Pareto k-hat
+### 3.1.2 Pareto k-hat
 
 ```{r}
 loo(thiomon_data_model_pooled)
@@ -431,7 +416,7 @@ loo(thiomon_data_model_pooled)
 
 There are no Pareto k-hat estimated greater than 0.7 which is what we desire.
 
-### 4.1.3 Choosing the prior
+### 3.1.3 Choosing the prior
 
 Continuing with checks on prior, justification for the chosen prior is that the default prior 'student_t(3, 0, 2.5)' is almost equivalent to a 'normal(0, 1.5)' but we find that the underlying 'theta' of the distribution is '0.48' which allows us to make a narrower choice.
 
@@ -444,7 +429,7 @@ data.frame(theta = plogis(rnorm(n=20000, mean=0, sd=1.0))) |>
 
 It seems it is a correct choice as there is no conflict revealed from the prior diagnostics.
 
-### 4.1.4 Posterior prior sensitivity
+### 3.1.4 Posterior prior sensitivity
 
 ```{r}
 thiomon_data_model_pooled |>
@@ -464,7 +449,7 @@ Posterior predictive checks seem fine as well. Density overlay seems to fit well
 pp_check(thiomon_data_model_pooled, type = 'dens_overlay', ndraws = 200)
 ```
 
-### 4.1.5 Posterior predictive checking
+### 3.1.5 Posterior predictive checking
 
 LOO-PIT check seems fine as well.
 
@@ -478,7 +463,7 @@ LOO-PIT ECDF is within the blue recommendation.
 pp_check(thiomon_data_model_pooled, type = 'pit_ecdf', ndraws = 4000)
 ```
 
-### 4.1.6 Model parameters
+### 3.1.6 Model parameters
 
 Value of the population intercept 'alpha' is estimated at 0.14. We exclude the likelihood parameters.
 
@@ -486,27 +471,7 @@ Value of the population intercept 'alpha' is estimated at 0.14. We exclude the l
 as_draws_df(thiomon_data_model_pooled)  |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
 ```
 
-```{r}
-# Predict probabilities on the test data
-predicted_probs <- posterior_predict(thiomon_data_model_pooled, 
-                                     newdata = test_data, draws = 4000)
-
-# Calculate the mean predicted probabilities for each test sample
-mean_probs <- colMeans(predicted_probs)
-
-# Predict classes based on a threshold of 0.5
-predicted_classes <- ifelse(mean_probs >= 0.5, 1, 0)
-
-# Generate confusion matrix
-conf_matrix <- confusionMatrix(as.factor(predicted_classes), as.factor(test_data$remission))
-
-#Convert this to data frame and use tt() for pretty print
-print(conf_matrix)
-```
-
-The pooled model is x% accurate.
-
-## 4.2. Separate model
+## 3.2. Separate model
 
 Try with the separate model. Let's try with the sample one below using the recommended parameters from above section:
 
@@ -543,7 +508,7 @@ thiomon_data_model_separate <- brm(
 )
 ```
 
-### 4.2.1 Checking if the covariates are normally distributed
+### 3.2.1 Checking if the covariates are normally distributed
 
 ```{r}
 train_data |>
@@ -565,7 +530,7 @@ Both the parameters demonstrate a normal distribution around their respective me
 
 We don't use flat priors as they are uninformative and we have lots of data to give us good reference values. Also with flat priors, posterior prior checking tools due to input containing infinite or NA values as there is a constant tail. We notice also that the entire population parameters are assigned the same priors. We want to change it. Also notice that we don't have population level Intercept.
 
-### 4.2.2 Checking prior sensitivity
+### 3.2.2 Checking prior sensitivity
 
 With our chosen priors (we used the default priors first and then used the posterior of the slopes to judge what we need), we expect to see no prior prior sensitivity and we are right. Power-scaling with cumulative Jensen-Shannon distance diagnostic indicates no prior-data conflict.
 
@@ -579,7 +544,7 @@ thiomon_data_model_separate |>
   powerscale_sensitivity() |> tt()
 ```
 
-### 4.2.3 R-hat and Effective Sample Size (ESS)
+### 3.2.3 R-hat and Effective Sample Size (ESS)
 
 First checking the model for any discrepancies in R-hat and ESS before proceeding any further.
 
@@ -593,7 +558,7 @@ R-hat and effective sample sizes look good. At convergence also R-hat value is 1
 loo(thiomon_data_model_separate)
 ```
 
-### 4.2.4 Issue with Pareto K-hat and solution
+### 3.2.4 Issue with Pareto K-hat and solution
 
 ```{r}
 loo(thiomon_data_model_separate)
@@ -607,7 +572,7 @@ thiomon_data_model_separate <- add_criterion(thiomon_data_model_separate, criter
 
 The Pareto k-estimates indicate there are no observations which have k \> 0.7. Posterior predictive checks seem fine as well. Density overlay seems to fit well.
 
-### 4.2.5 Posterior predictive checking
+### 3.2.5 Posterior predictive checking
 
 ```{r}
 pp_check(thiomon_data_model_separate, type = 'dens_overlay', ndraws = 200)
@@ -625,7 +590,7 @@ LOO-PIT ECDF is within the recommendation.
 pp_check(thiomon_data_model_separate, type = 'pit_ecdf', ndraws = 4000)
 ```
 
-### 4.2.6 Model parameters
+### 3.2.6 Model parameters
 
 The slopes for the covariates can be listed using the following
 
@@ -633,25 +598,7 @@ The slopes for the covariates can be listed using the following
 as_draws_df(thiomon_data_model_separate)  |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
 ```
 
-```{r}
-# Predict probabilities on the test data
-predicted_probs <- posterior_predict(thiomon_data_model_separate, 
-                                     newdata = test_data, draws = 4000)
-
-# Calculate the mean predicted probabilities for each test sample
-mean_probs <- colMeans(predicted_probs)
-
-# Predict classes based on a threshold of 0.5
-predicted_classes <- ifelse(mean_probs >= 0.5, 1, 0)
-
-# Generate confusion matrix
-conf_matrix <- confusionMatrix(as.factor(predicted_classes), as.factor(test_data$remission))
-
-#Convert this to data frame and use tt() for pretty print
-print(conf_matrix)
-```
-
-## 4.3. Hierarchical model
+## 3.3. Hierarchical model
 
 Let's try a hierarchical model. In 'hier_1' there is no global intercept but in 'hier_2' there is.
 
@@ -730,7 +677,7 @@ thiomon_data_model_hier_2 <- brm(
 )
 ```
 
-### 4.3.1 R-hat and Effective Sample Size (ESS)
+### 3.3.1 R-hat and Effective Sample Size (ESS)
 
 R-hat and ESS values look good. Convergence at the end of the run indicates R-hat is 1.0 which means samples are reliable and can be used for inference. Also posterior prior sensitivity is well adjusted.
 
@@ -743,7 +690,7 @@ The prior sensitivity caused some issues for us. There were a few divergent tran
 
 The following commands are generic for both the hierarchical model choices. We continue with hier_1 as both the models have almost same EPLD value (negligible difference as expected).
 
-### 4.3.2 Issue with Pareto K-hat and solution
+### 3.3.2 Issue with Pareto K-hat and solution
 
 ```{r}
 loo(thiomon_data_model_hier_1)
@@ -755,7 +702,7 @@ Since there were no values with problematic K-hat the following is not required.
 thiomon_data_model_hier_1 <- add_criterion(thiomon_data_model_hier_1, criterion='loo', reloo=TRUE)
 ```
 
-### 4.3.3 LOO-PIT check
+### 3.3.3 LOO-PIT check
 
 ```{r}
 pp_check(thiomon_data_model_hier_1, type = 'loo_pit_qq', ndraws = 4000)
@@ -783,9 +730,9 @@ conf_matrix <- confusionMatrix(as.factor(predicted_classes), as.factor(test_data
 print(conf_matrix)
 ```
 
-## 4.4 Pooled, Separate and Hierarchical model comparision
+## 3.4 Pooled, Separate and Hierarchical model comparision
 
-### 4.4.1 LOO comparing all the 4 models
+### 3.4.1 LOO comparing all the 4 models
 
 ```{r}
 loo_compare(loo(thiomon_data_model_pooled), loo(thiomon_data_model_separate), loo(thiomon_data_model_hier_1), loo(thiomon_data_model_hier_2)) |>
@@ -797,7 +744,7 @@ loo_compare(loo(thiomon_data_model_pooled), loo(thiomon_data_model_separate), lo
 
 The best performing model is the hierarchical, closely followed by separate with hardly much difference in EPLD (less than 0.5) and finally the pooled (with a EPLD score 18 points below both of the hierarchical and separate models).
 
-### 4.3.2 Model posterior distributions
+### 3.3.2 Model posterior distributions
 
 ```{r}
 if (!require(patchwork)) {
@@ -853,7 +800,7 @@ pp <- thiomon_data_model_pooled |>
 
 The reasons are mostly clear - the separate and hierarchical models perform almost the same but the pooled model does not factor in any covariates and hence only relies on the remission bits as information and hence it has poor predictive power. The close performance of the separate and hierarchical models is due to the fact that the patients segregated by the 'hgbrat' do share some information mutually in the hierarchical model but this is not much which means that the predicted remissions are not widely varying.
 
-### 4.3.3 Bayes and LOO R2 checks
+### 3.3.3 Bayes and LOO R2 checks
 
 ```{r warning=FALSE}
 #Pooled model
@@ -877,54 +824,420 @@ The pooled model has negligible values as they don't have any covariates factore
 
 The LOO-R2 and Bayes-R2 values both match for all the models indicating that there is no likely over-fitting or under-fitting of the data.
 
-## 4.4. Non-Bayesian model
+## 3.4. Non-Bayesian model
 
-**[Long] Please help filling this section.**
+Due to the accuracy of the model here 
+```{r}
 
-# ~~5. Convergence diagnostics~~
+model_svm <- svm(remission ~ 0 + days_of_life + wbc + hgb + hct + plt + rbc + mcv + mch + mchc + rdw + mpv + neut_percent + lymph_percent + mono_percent + eos_percent + baso_percent + sod + pot + chlor + co2 + un + creat + gluc + cal + prot + alb + ast + alt + alk + tbil, data = train_data)
 
-## ~~5.1.~~ $\widehat{R}$
+```
 
-## ~~5.2. Effective sample size~~
+```{r}
 
-## ~~5.3. Divergent transitions~~
+model <- nnet(remission ~ days_of_life + wbc + hgb + hct + plt + rbc + mcv + mch + mchc + rdw + mpv + neut_percent + lymph_percent + mono_percent + eos_percent + baso_percent + sod + pot + chlor + co2 + un + creat + gluc + cal + prot + alb + ast + alt + alk + tbil, data = thiomon, size = 20,    # Number of hidden units 
+maxit = 100)  # For classification
+```
+```{r}
+model_glm <- glm(remission ~ 0 + days_of_life + wbc + hgb + hct + plt + rbc + mcv + mch + mchc + rdw + mpv + neut_percent + lymph_percent + mono_percent + eos_percent + baso_percent + sod + pot + chlor + co2 + un + creat + gluc + cal + prot + alb + ast + alt + alk + tbil, data = thiomon)
+```
+# 4. Evaluation results 
 
-## ~~5.4. Conclusion about convergence~~
+## 4.1. Confusion matrix and Evaluation metrics results
+```{r include=FALSE}
+# Calculate predicted probabilities on training data
+train_predicted_probs_pooled <- posterior_predict(thiomon_data_model_pooled, newdata = train_data, draws = 4000, allow_new_levels = TRUE)
+train_mean_probs_pooled <- colMeans(train_predicted_probs_pooled)
 
-# ~~6. Posterior predictive checks~~
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_pooled <- roc(train_data$remission, train_mean_probs_pooled)
+optimal_threshold_pooled <- coords(train_roc_curve_pooled, "best", ret = "threshold")
 
-## ~~6.1. Separate Model~~
+# Predict on test data
+predicted_probs_pooled <- posterior_predict(thiomon_data_model_pooled, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_pooled <- colMeans(predicted_probs_pooled)
 
-## ~~6.2. Hierarchical Model~~
+# ROC Curve
+roc_curve_pooled <- roc(test_data$remission, mean_probs_pooled)
+# plot(roc_curve_pooled, main = "ROC Curve for Separate Model")
 
-# 7. Predictive Performance Assessment
+# Confusion Matrix
+predicted_classes_pooled <- ifelse(mean_probs_pooled >= optimal_threshold_pooled$threshold, 1, 0)
+conf_matrix_pooled <- confusionMatrix(as.factor(predicted_classes_pooled), as.factor(test_data$remission))
+print(conf_matrix_pooled)
 
-## 7.1. Model accuracy and Confusion matrix
+```
 
-## 7.2. ROC curves and AUC values
 
-## ~~8. Sensitivity Analysis~~
+```{r include=FALSE}
+# Calculate predicted probabilities on training data
+train_predicted_probs_separate <- posterior_predict(thiomon_data_model_separate, newdata = train_data, draws = 4000, allow_new_levels = TRUE)
+train_mean_probs_separate <- colMeans(train_predicted_probs_separate)
 
-# 9. Discussion of Issues and Potential Improvements
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_separate <- roc(train_data$remission, train_mean_probs_separate)
+optimal_threshold_separate <- coords(train_roc_curve_separate, "best", ret = "threshold")
 
-# 10. Conclusion
+# Predict on test data
+predicted_probs_separate <- posterior_predict(thiomon_data_model_separate, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_separate <- colMeans(predicted_probs_separate)
 
-# 11. Self-Reflection
+# ROC Curve
+roc_curve_separate <- roc(test_data$remission, mean_probs_separate)
+# plot(roc_curve_separate, main = "ROC Curve for Separate Model")
 
-## 11.1. Group Learning
+# Confusion Matrix
+predicted_classes_separate <- ifelse(mean_probs_separate >= optimal_threshold_separate$threshold, 1, 0)
+conf_matrix_separate <- confusionMatrix(as.factor(predicted_classes_separate), as.factor(test_data$remission))
+print(conf_matrix_separate)
+```
 
-## 11.2. Self Learning
+```{r include=FALSE}
+# Calculate predicted probabilities on training data
+train_predicted_probs_hierarchical_1 <- posterior_predict(thiomon_data_model_hier_1, newdata = train_data, draws = 4000, allow_new_levels = TRUE)
+train_mean_probs_hierarchical_1 <- colMeans(train_predicted_probs_hierarchical_1)
 
-# Appendix
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_hierarchical_1 <- roc(train_data$remission, train_mean_probs_hierarchical_1)
+optimal_threshold_hierarchical_1 <- coords(train_roc_curve_hierarchical_1, "best", ret = "threshold")
 
-## A. Stan code
+# Predict on test data
+predicted_probs_hierarchical_1 <- posterior_predict(thiomon_data_model_hier, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_hierarchical_1 <- colMeans(predicted_probs_hierarchical_1)
 
-### A.1. Pooled model
+# ROC Curve
+roc_curve_hierarchical_1 <- roc(test_data$remission, mean_probs_hierarchical_1)
+# plot(roc_curve_hierarchical_1, main = "ROC Curve for First Model")
 
-### A.2. Separate model
+# Confusion Matrix
+predicted_classes_hierarchical_1 <- ifelse(mean_probs_hierarchical_1 >= optimal_threshold_hierarchical_1$threshold, 1, 0)
+conf_matrix_hierarchical_1 <- confusionMatrix(as.factor(predicted_classes_hierarchical_1), as.factor(test_data$remission))
+print(conf_matrix_hierarchical_1)
+```
 
-### A.3. Hierarchical model
 
-## B. Loaded packages
+
+```{r include=FALSE}
+# Calculate predicted probabilities on training data
+train_predicted_probs_hierarchical_2 <- posterior_predict(thiomon_data_model_hier_2, newdata = train_data, draws = 4000, allow_new_levels = TRUE)
+train_mean_probs_hierarchical_2 <- colMeans(train_predicted_probs_hierarchical_2)
+
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_hierarchical_2 <- roc(train_data$remission, train_mean_probs_hierarchical_2)
+optimal_threshold_hierarchical_2 <- coords(train_roc_curve_hierarchical_2, "best", ret = "threshold")
+
+# Predict on test data
+predicted_probs_hierarchical_2 <- posterior_predict(thiomon_data_model_hier, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_hierarchical_2 <- colMeans(predicted_probs_hierarchical_2)
+
+# ROC Curve
+roc_curve_hierarchical_2 <- roc(test_data$remission, mean_probs_hierarchical_2)
+# plot(roc_curve_hierarchical_2, main = "ROC Curve for First Model")
+
+# Confusion Matrix
+predicted_classes_hierarchical_2 <- ifelse(mean_probs_hierarchical_2 >= optimal_threshold_hierarchical_2$threshold, 1, 0)
+conf_matrix_hierarchical_2 <- confusionMatrix(as.factor(predicted_classes_hierarchical_2), as.factor(test_data$remission))
+print(conf_matrix_hierarchical_2)
+```
+
+```{r include=FALSE}
+# Predict probabilities on the training data
+pred_probs_svm <- predict(model_svm, train_data, probability = TRUE)
+
+# Generate the ROC curve
+train_roc_curve_svm <- roc(train_data$remission, pred_probs_svm)
+
+# Find the optimal threshold
+optimal_threshold_svm <- coords(train_roc_curve_svm, "best", ret = "threshold")
+
+# Apply the threshold to the test_data find
+
+# probs in test_data
+pred_probs_svm_test <- predict(model_svm, test_data, probability = TRUE)
+# Confusion matrix using the optimal_threshold_svm
+pred_classes_svm <- ifelse(pred_probs_svm > optimal_threshold_svm$threshold, 1, 0)
+conf_matrix_svm <- confusionMatrix(as.factor(pred_classes_svm), as.factor(train_data$remission))
+print(conf_matrix_svm)
+
+# Predict probabilities on the test data
+pred_probs_svm_test <- predict(model_svm, test_data, probability = TRUE)
+roc_curve_svm <- roc(test_data$remission, pred_probs_svm_test)
+
+# Plot the ROC curve
+# plot(roc_curve_svm, main = "ROC Curve for SVM Model")
+```
+
+```{r include=FALSE}
+# Predict probabilities on the training data
+pred_probs_glm <- predict(model_glm, train_data, type = "response")
+
+# Generate the ROC curve
+train_roc_curve_glm <- roc(train_data$remission, pred_probs_glm)
+
+# Find the optimal threshold
+optimal_threshold_glm <- coords(train_roc_curve_glm, "best", ret = "threshold")
+
+# Apply the threshold to the test_data find
+
+# probs in test_data
+pred_probs_glm_test <- predict(model_glm, test_data, type = "response") 
+# Confusion matrix using the optimal_threshold_glm
+
+pred_classes_glm <- ifelse(pred_probs_glm > optimal_threshold_glm$threshold, 1, 0)
+conf_matrix_glm <- confusionMatrix(as.factor(pred_classes_glm), as.factor(train_data$remission))
+print(conf_matrix_glm)
+
+# Predict probabilities on the test data
+pred_probs_glm_test <- predict(model_glm, test_data, type = "response")
+roc_curve_glm <- roc(test_data$remission, pred_probs_glm_test)
+
+# Plot the ROC curve
+# plot(roc_curve_glm, main = "ROC Curve for GLM Model")
+```
+
+```{r include=FALSE}
+# Predict probabilities on the training data
+pred_probs_glm <- predict(model_glm, train_data, type = "response")
+
+# Generate the ROC curve
+train_roc_curve_glm <- roc(train_data$remission, pred_probs_glm)
+
+# Find the optimal threshold
+optimal_threshold_glm <- coords(train_roc_curve_glm, "best", ret = "threshold")
+
+# Apply the threshold to the test_data find
+
+# probs in test_data
+pred_probs_glm_test <- predict(model_glm, test_data, type = "response") 
+# Confusion matrix using the optimal_threshold_glm
+
+pred_classes_glm <- ifelse(pred_probs_glm > optimal_threshold_glm$threshold, 1, 0)
+conf_matrix_glm <- confusionMatrix(as.factor(pred_classes_glm), as.factor(train_data$remission))
+print(conf_matrix_glm)
+
+# Predict probabilities on the test data
+pred_probs_glm_test <- predict(model_glm, test_data, type = "response")
+roc_curve_glm <- roc(test_data$remission, pred_probs_glm_test)
+
+# Plot the ROC curve
+# plot(roc_curve_glm, main = "ROC Curve for GLM Model")
+```
+
+```{r include=FALSE}
+# Predict probabilities on the training data
+pred_probs_nn <- predict(model, train_data, type = "raw")
+
+# Generate the ROC curve
+train_roc_curve_nn <- roc(train_data$remission, pred_probs_nn)
+
+# Find the optimal threshold
+optimal_threshold_nn <- coords(train_roc_curve_nn, "best", ret = "threshold")
+
+# Apply the threshold to the training data
+pred_classes_nn <- ifelse(pred_probs_nn > optimal_threshold_nn$threshold, 1, 0)
+conf_matrix_nn <- confusionMatrix(as.factor(pred_classes_nn), as.factor(train_data$remission))
+print(conf_matrix_nn)
+
+# Predict probabilities on the test data
+pred_probs_nn_test <- predict(model, test_data, type = "raw")
+
+# Apply the threshold to the test data
+pred_classes_nn_test <- ifelse(pred_probs_nn_test > optimal_threshold_nn$threshold, 1, 0)
+conf_matrix_nn_test <- confusionMatrix(as.factor(pred_classes_nn_test), as.factor(test_data$remission))
+print(conf_matrix_nn_test)
+
+# Generate the ROC curve
+roc_curve_nn <- roc(test_data$remission, pred_probs_nn_test)
+
+# Plot the ROC curve
+# plot(roc_curve_nn, main = "ROC Curve for Neural Network Model")
+```
+
+
+
+## 4.2. ROC curves and AUC values
+
+```{r}
+# Function to interpolate and smooth ROC curve with jitter
+interpolate_smooth_roc_jitter <- function(roc_curve, n = 100, jitter_amount = 1e-5) {
+  roc_smooth <- smooth(roc_curve)
+  fpr <- seq(0, 1, length.out = n)
+  tpr <- approx(roc_smooth$specificities + runif(length(roc_smooth$specificities), -jitter_amount, jitter_amount), 
+                roc_smooth$sensitivities, xout = fpr)$y
+  data.frame(fpr = fpr, tpr = tpr)
+}
+
+# Calculate and interpolate ROC curves with jitter
+roc_pooled_train <- interpolate_smooth_roc_jitter(train_roc_curve_pooled)
+roc_pooled_test <- interpolate_smooth_roc_jitter(roc_curve_pooled)
+roc_separate_train <- interpolate_smooth_roc_jitter(train_roc_curve_separate)
+roc_separate_test <- interpolate_smooth_roc_jitter(roc_curve_separate)
+roc_hierarchical_1_train <- interpolate_smooth_roc_jitter(train_roc_curve_hierarchical_1)
+roc_hierarchical_1_test <- interpolate_smooth_roc_jitter(roc_curve_hierarchical_1)
+roc_hierarchical_2_train <- interpolate_smooth_roc_jitter(train_roc_curve_hierarchical_2)
+roc_hierarchical_2_test <- interpolate_smooth_roc_jitter(roc_curve_hierarchical_2)
+
+# glm, svm and nn model too
+roc_glm_train <- interpolate_smooth_roc_jitter(train_roc_curve_glm)
+roc_glm_test <- interpolate_smooth_roc_jitter(roc_curve_glm)
+roc_svm_train <- interpolate_smooth_roc_jitter(train_roc_curve_svm)
+roc_svm_test <- interpolate_smooth_roc_jitter(roc_curve_svm)
+# roc_nn_train <- interpolate_smooth_roc_jitter(train_roc_curve_nn)
+# roc_nn_test <- interpolate_smooth_roc_jitter(roc_curve_nn)
+
+# Calculate AUC values
+auc_pooled_train <- auc(train_roc_curve_pooled)
+auc_pooled_test <- auc(roc_curve_pooled)
+auc_separate_train <- auc(train_roc_curve_separate)
+auc_separate_test <- auc(roc_curve_separate)
+auc_hierarchical_1_train <- auc(train_roc_curve_hierarchical_1)
+auc_hierarchical_1_test <- auc(roc_curve_hierarchical_1)
+auc_hierarchical_2_train <- auc(train_roc_curve_hierarchical_2)
+auc_hierarchical_2_test <- auc(roc_curve_hierarchical_2)
+auc_glm_train <- auc(train_roc_curve_glm)
+auc_glm_test <- auc(roc_curve_glm)
+auc_svm_train <- auc(train_roc_curve_svm)
+auc_svm_test <- auc(roc_curve_svm)
+# auc_nn_train <- auc(train_roc_curve_nn)
+# auc_nn_test <- auc(roc_curve_nn)
+
+# Combine ROC curves into one data frame
+
+train_roc_data <- rbind(
+  data.frame(roc_pooled_train, model = paste("Pool Train (AUC =", round(auc_pooled_train, 4), ")")),
+  data.frame(roc_separate_train, model = paste("Separate Train (AUC =", round(auc_separate_train, 4), ")")),
+  data.frame(roc_hierarchical_1_train, model = paste("Hierarchical with Global Intercept Train (AUC =", round(auc_hierarchical_1_train, 4), ")")),
+  data.frame(roc_hierarchical_2_train, model = paste("Hierarchical without Global Intercept Train (AUC =", round(auc_hierarchical_2_train, 4), ")")),
+  data.frame(roc_glm_train, model = paste("GLM Train (AUC =", round(auc_glm_train, 4), ")")),
+  data.frame(roc_svm_train, model = paste("SVM Train (AUC =", round(auc_svm_train, 4), ")"))
+  #data.frame(roc_nn_train, model = paste("NN Train (AUC =", round(auc_nn_train, 4), ")")),
+  #data.frame(roc_nn_test, model = paste("NN Test (AUC =", round(auc_nn_test, 4), ")"))
+  )
+test_roc_data <- rbind(
+  data.frame(roc_pooled_test, model = paste("Pool Test (AUC =", round(auc_pooled_test, 4), ")")),
+  data.frame(roc_separate_test, model = paste("Separate Test (AUC =", round(auc_separate_test, 4), ")")),
+  data.frame(roc_hierarchical_1_test, model = paste("Hierarchical with Global Intercept Test (AUC =", round(auc_hierarchical_1_test, 4), ")")),
+  data.frame(roc_hierarchical_2_test, model = paste("Hierarchical without Global Intercept Test (AUC =", round(auc_hierarchical_2_test, 4), ")")),
+  data.frame(roc_glm_test, model = paste("GLM Test (AUC =", round(auc_glm_test, 4), ")")),
+  data.frame(roc_svm_test, model = paste("SVM Test (AUC =", round(auc_svm_test, 4), ")"))
+  #data.frame(roc_nn_test, model = paste("NN Test (AUC =", round(auc_nn_test, 4), ")"))
+  )
+# Plot all ROC curves in one plot
+ggplot(train_roc_data, aes(x = fpr, y = tpr, color = model)) +
+  geom_line() +
+  labs(title = "ROC Curves for Different Models", x = "False Positive Rate", y = "True Positive Rate") +
+  theme_minimal()
+ggplot(test_roc_data, aes(x = fpr, y = tpr, color = model)) +
+  geom_line() +
+  labs(title = "ROC Curves for Different Models", x = "False Positive Rate", y = "True Positive Rate") +
+  theme_minimal()
+
+```
+
+# 5. Discussion of Issues and Potential Improvements
+
+# 6. Conclusion
+
+# 7. Self-Reflection
+
+Regarding to the project, we have learned how to collaborate and help each other in the group. The project has been done with multiple trials and errors, with different parameter fitting. And the final result is the balance trade-off of accuracy and time training. In some cases, some evaluation metrics need the knowledge, leading to our discussion and revision of course content material and providing the oppurtunity for us to improve ourself throughout the professor's project report. Even though the Bayesian classification result cannot be used in real research work and does not have a good accuracy compared to the other research publication, the application of Bayesian and how to evaluate the model can help us for building our fundamental knowledge and inspire our future research path. Moreover, the process of doing the project together can also enhance our skill in teamwork and communication. We really appreciate the oppurtunity from the course orientation to the final project.
+
+# Appendix: Environment setup
+
+```
+rm(list = ls()) # Remove the environment variables
+setwd("Your working directory here") 
+SEED = 42 # Set the seed for reproducibility
+if(!require(nnet)) {
+  install.packages("nnet")
+  library(nnet)
+}
+if (!require(rstan)) {
+    install.packages("rstan")
+    library(rstan)
+}
+if (!require(loo)) {
+    install.packages("loo")
+    library(loo)
+}
+if (!require(gridExtra)) {
+    install.packages("gridExtra")
+    library(gridExtra)
+}
+if (!require(grid)) {
+    install.packages("grid")
+    library(grid)
+}
+if (!require(rmarkdown)) {
+    install.packages("rmarkdown")
+    library(rmarkdown)
+}
+if (!require(tidybayes)) {
+    install.packages("tidybayes")
+    library(tidybayes)
+}
+if (!require(brms)) {
+    install.packages("brms")
+    library(brms)
+}
+if(!require(cmdstanr)){
+    install.packages("cmdstanr", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
+    library(cmdstanr)
+}
+cmdstan_installed <- function(){
+  res <- try(out <- cmdstanr::cmdstan_path(), silent = TRUE)
+  !inherits(res, "try-error")
+}
+if(!cmdstan_installed()){
+    install_cmdstan()
+}
+if(!require(ggplot2)){
+    install.packages("ggplot2")
+    library(ggplot2)
+}
+ggplot2::theme_set(theme_minimal(base_size = 14))
+if(!require(bayesplot)){
+    install.packages("bayesplot")
+    library(bayesplot)
+}
+if(!require(posterior)){
+    install.packages("posterior")
+    library(posterior)
+}
+if (!require(priorsense)) {
+  install.packages("priorsense")
+  library(priorsense)
+}
+if (!require(tibble)) {
+  install.packages("tibble")
+  library(tibble)
+}
+
+if (!require(dplyr)) {
+  install.packages("dplyr")
+  library(dplyr)
+}
+if (!require(pROC)) {
+  install.packages("pROC")
+  library(pROC)
+}
+if (!require(caret)) {
+  install.packages("caret")
+  library(caret)
+}
+if(!require(fitdistrplus)){
+    install.packages("fitdistrplus", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
+    library(fitdistrplus)
+}
+if(!require(e1071)) {
+  install.packages("e1071")
+  library(e1071)
+}
+if(!require(caret)) {
+  install.packages("caret")
+  library(caret)
+}
+options(tinytable_format_num_fmt = "significant_cell", tinytable_format_digits = 2, tinytable_tt_digits=2)
+```
 
 # References
