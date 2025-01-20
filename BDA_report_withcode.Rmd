@@ -16,8 +16,9 @@ csl: vancouver.csl
 
 ```{r include=FALSE}
 suppressWarnings({
-# setwd("/notebooks/bda2024/Bayes_project/Bayes_project")
-setwd("C:/Users/nguye/OneDrive - Aalto University/University/First year/Project/Bayes_project")
+rm(list = ls())
+setwd("/notebooks/bda2024/Bayes_project")
+# setwd("C:/Users/nguye/OneDrive - Aalto University/University/First year/Project/Bayes_project")
 SEED = 42
 if(!require(nnet)) {
   install.packages("nnet")
@@ -275,41 +276,17 @@ source_data$hbghctrat <- cut(source_data$hbghctrat, breaks = seq(min(source_data
 source_data$hbghctrat <- as.character(source_data$hbghctrat)
 
 source_data$hgbratnum <- cut(source_data$hgb, breaks = seq(min(source_data$hgb), max(source_data$hgb), length.out = 6), labels = c(1,2,3,4,5))
-
 source_data$hgbrat <- as.character(source_data$hgbratnum)
-
-#Remove invalid entries
-source_data <- na.omit(source_data)
-
 # Sample a subset of the 4500 rows to improve computation time
-MAX_DATA_SAMPLES <- 4000
-
+MAX_DATA_SAMPLES <- 4500
 #Number of samples for the likelihood
-NUM_DATA_SAMPLES <- 2000
+NUM_DATA_SAMPLES <- 4500
+source_data <- na.omit(source_data)
 train_data_norm <- source_data[sample(MAX_DATA_SAMPLES, NUM_DATA_SAMPLES), ]
 
-#Number of samples for the testing
-test_data <- source_data[4001:5000, ]
-
-NUM_DATA_SAMPLES_ALT = 40
-
-temp_var <- source_data[source_data$hgbrat == 1,]
-train_data_alt <- temp_var[sample(nrow(temp_var), NUM_DATA_SAMPLES_ALT), ]
-
-temp_var <- source_data[source_data$hgbrat == 2,]
-train_data_alt <- rbind(train_data_alt, temp_var[sample(nrow(temp_var), NUM_DATA_SAMPLES_ALT), ])
-
-temp_var <- source_data[source_data$hgbrat == 3,]
-train_data_alt <- rbind(train_data_alt, temp_var[sample(nrow(temp_var), NUM_DATA_SAMPLES_ALT), ])
-
-temp_var <- source_data[source_data$hgbrat == 4,]
-train_data_alt <- rbind(train_data_alt, temp_var[sample(nrow(temp_var), NUM_DATA_SAMPLES_ALT), ])
-
-temp_var <- source_data[source_data$hgbrat == 5,]
-train_data_alt <- rbind(train_data_alt, temp_var[sample(nrow(temp_var), NUM_DATA_SAMPLES_ALT), ])
-
-#Set it to our alternate data set
 train_data <- train_data_norm
+train_data <- na.omit(train_data)
+test_data <- source_data[4501:nrow(source_data), ]
 ```
 
 ### 2.2.1 Identifying variables for our modelling
@@ -715,7 +692,7 @@ There is no issue anymore of prior sensitivity.
 ```{r}
 # Predict probabilities on the test data
 predicted_probs <- posterior_predict(thiomon_data_model_hier_2, 
-                                     newdata = test_data, draws = 4000)
+                                     newdata = test_data, draws = 4000, allow_new_levels = TRUE)
 
 # Calculate the mean predicted probabilities for each test sample
 mean_probs <- colMeans(predicted_probs)
@@ -826,7 +803,9 @@ The LOO-R2 and Bayes-R2 values both match for all the models indicating that the
 
 ## 3.4. Non-Bayesian model
 
-Due to the accuracy of the model here 
+Besides the implementation of Bayesian model, we would like to introduce the machine learning aspect to the model as well for comparison between Bayesian approach and simple machine learning approach, while finding and evaluating the correlation between model parameters for saving computational resources and suggesting the observation that we can try in Bayesian model as well. Support vector machine (SVM) model and General Linear model (GLM) will be described with the following parameters based on the abbreviation of dataset description /cite something here. In general, the model will use all of the parameters of the dataset, without any modification, for the purpose of comparison only 
+
+
 ```{r}
 
 model_svm <- svm(remission ~ 0 + days_of_life + wbc + hgb + hct + plt + rbc + mcv + mch + mchc + rdw + mpv + neut_percent + lymph_percent + mono_percent + eos_percent + baso_percent + sod + pot + chlor + co2 + un + creat + gluc + cal + prot + alb + ast + alt + alk + tbil, data = train_data)
@@ -834,16 +813,18 @@ model_svm <- svm(remission ~ 0 + days_of_life + wbc + hgb + hct + plt + rbc + mc
 ```
 
 ```{r}
-
-model <- nnet(remission ~ days_of_life + wbc + hgb + hct + plt + rbc + mcv + mch + mchc + rdw + mpv + neut_percent + lymph_percent + mono_percent + eos_percent + baso_percent + sod + pot + chlor + co2 + un + creat + gluc + cal + prot + alb + ast + alt + alk + tbil, data = thiomon, size = 20,    # Number of hidden units 
-maxit = 100)  # For classification
-```
-```{r}
 model_glm <- glm(remission ~ 0 + days_of_life + wbc + hgb + hct + plt + rbc + mcv + mch + mchc + rdw + mpv + neut_percent + lymph_percent + mono_percent + eos_percent + baso_percent + sod + pot + chlor + co2 + un + creat + gluc + cal + prot + alb + ast + alt + alk + tbil, data = thiomon)
 ```
 # 4. Evaluation results 
 
+After building the model, dut to the objective of the model is classifation, we can use classification evaluation metrics aspect for evaluation the model result. Two suggestion that we have implemented: using confusion matrix with evaluation metrics mathematical calculation, and using ROC curves with AUC values for different model comparison, which can be elaborated in session 4.1. and 4.2.
+
 ## 4.1. Confusion matrix and Evaluation metrics results
+
+Confusion matrix is a common method for binary classification task, where the prediction will be built in the augmented matrix, describing the actual status of the model prediction. There will....
+
+Besides that, we can see different evaluation metrics mathematical calculation as the consequence of confusion matrix as well...
+
 ```{r include=FALSE}
 # Calculate predicted probabilities on training data
 train_predicted_probs_pooled <- posterior_predict(thiomon_data_model_pooled, newdata = train_data, draws = 4000, allow_new_levels = TRUE)
@@ -902,7 +883,7 @@ train_roc_curve_hierarchical_1 <- roc(train_data$remission, train_mean_probs_hie
 optimal_threshold_hierarchical_1 <- coords(train_roc_curve_hierarchical_1, "best", ret = "threshold")
 
 # Predict on test data
-predicted_probs_hierarchical_1 <- posterior_predict(thiomon_data_model_hier, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+predicted_probs_hierarchical_1 <- posterior_predict(thiomon_data_model_hier_1, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
 mean_probs_hierarchical_1 <- colMeans(predicted_probs_hierarchical_1)
 
 # ROC Curve
@@ -927,7 +908,7 @@ train_roc_curve_hierarchical_2 <- roc(train_data$remission, train_mean_probs_hie
 optimal_threshold_hierarchical_2 <- coords(train_roc_curve_hierarchical_2, "best", ret = "threshold")
 
 # Predict on test data
-predicted_probs_hierarchical_2 <- posterior_predict(thiomon_data_model_hier, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+predicted_probs_hierarchical_2 <- posterior_predict(thiomon_data_model_hier_2, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
 mean_probs_hierarchical_2 <- colMeans(predicted_probs_hierarchical_2)
 
 # ROC Curve
@@ -961,39 +942,17 @@ print(conf_matrix_svm)
 
 # Predict probabilities on the test data
 pred_probs_svm_test <- predict(model_svm, test_data, probability = TRUE)
-roc_curve_svm <- roc(test_data$remission, pred_probs_svm_test)
-
+# confusion matrix for testing data
+pred_classes_svm_test <- ifelse(pred_probs_svm_test > optimal_threshold_svm$threshold, 1, 0)
+conf_matrix_svm_test <- confusionMatrix(as.factor(pred_classes_svm_test), as.factor(test_data$remission))
+print(conf_matrix_svm_test)
+# roc curve for testing data
+roc_curve_svm <- roc(test_data$remission, pred_probs_svm_test)  
+  
 # Plot the ROC curve
-# plot(roc_curve_svm, main = "ROC Curve for SVM Model")
+plot(roc_curve_svm, main = "ROC Curve for SVM Model")
 ```
 
-```{r include=FALSE}
-# Predict probabilities on the training data
-pred_probs_glm <- predict(model_glm, train_data, type = "response")
-
-# Generate the ROC curve
-train_roc_curve_glm <- roc(train_data$remission, pred_probs_glm)
-
-# Find the optimal threshold
-optimal_threshold_glm <- coords(train_roc_curve_glm, "best", ret = "threshold")
-
-# Apply the threshold to the test_data find
-
-# probs in test_data
-pred_probs_glm_test <- predict(model_glm, test_data, type = "response") 
-# Confusion matrix using the optimal_threshold_glm
-
-pred_classes_glm <- ifelse(pred_probs_glm > optimal_threshold_glm$threshold, 1, 0)
-conf_matrix_glm <- confusionMatrix(as.factor(pred_classes_glm), as.factor(train_data$remission))
-print(conf_matrix_glm)
-
-# Predict probabilities on the test data
-pred_probs_glm_test <- predict(model_glm, test_data, type = "response")
-roc_curve_glm <- roc(test_data$remission, pred_probs_glm_test)
-
-# Plot the ROC curve
-# plot(roc_curve_glm, main = "ROC Curve for GLM Model")
-```
 
 ```{r include=FALSE}
 # Predict probabilities on the training data
@@ -1057,7 +1016,9 @@ roc_curve_nn <- roc(test_data$remission, pred_probs_nn_test)
 
 ## 4.2. ROC curves and AUC values
 
-```{r}
+
+
+```{r include=FALSE}
 # Function to interpolate and smooth ROC curve with jitter
 interpolate_smooth_roc_jitter <- function(roc_curve, n = 100, jitter_amount = 1e-5) {
   roc_smooth <- smooth(roc_curve)
@@ -1134,9 +1095,47 @@ ggplot(test_roc_data, aes(x = fpr, y = tpr, color = model)) +
 
 ```
 
+According to the evaluation result, we could see that almost all the models are having the AUC difference between training and testing data maximum 7%, which can be an acceptable value. Moreover, the Bayesian approach cannot be better than the GLM approach, due to the reason of having less occupied parameters in the model. We can base on that to improve our model as well.
+
+However, with the AUC values representing in SVM model, we can observe the affect of using multiple variables without filtering can also lead to the overfitting problem, which is the problem of choosing parameters without carefully decided. Therefore, the number and the choice of paramters must be experimental carefully
+
 # 5. Discussion of Issues and Potential Improvements
 
+According to the result, we do not have any problems with the posterior check or the model evaluation status. The only issues that we need to improve is the improvement in model accuracy. Increasing the number of parameters and normalizing the parameters into different categories and medical terms can help improve the model accuracy.
+
+An example for that is using different parameters, when we decide the model into different parameters, which has been normalized as follow
+
+```log_siirat
+```
+
+```
+```
 # 6. Conclusion
+
+After evaluating various models on the Thiomon dataset, we can conclude that the effects of the variables regarding remission are considerable. The Bayesian approach for this remission classification task is not compatible, especially with the current model. However,  However, the Bayesian approach is computationally complex, where increasing the number of parameters will lead to more time consumption during the fitting process. Therefore, we can expect more accuracy improvement when we build a larger model.
+
+Discussing the pooled model with regression coefficients only, we can see that it follows a random guess, leading to AUC values approximating 0.54, which is the accuracy of the dataset distribution as well.
+
+With the different Bayesian models, the parameters we can obtain for each model are:
+
+Separate model
+```
+remission ~ (-2.50 +- 0.51) * hgbrat1  + (-1.37 +- 0.12)* hgbrat2  + (-1.14, SE = 0.08) * hgbrat3  + (-0.24, SE = 0.08) * hgbrat4  + (0.17, SE = 0.20) *hgbrat5  + 0.05 * lymph_percent 
+```
+
+Hierarchical model with global coefficient:
+```
+remission ~ Intercept (-1.5, SE = 0.2) + lymph_percent (0.05, SE = 0.00) + (0.036 +- 0.008) sd_hgbrat__Intercept 
+```
+hierarchical model without global coefficient:
+```
+remission ~ lymph_percent (0.05, SE = 0.00) + sd_hgbrat__Intercept (0.036, SE = 0.008)
+
+```
+
+Compared to these models, the hierarchical models, particularly the one with a global coefficient, provided a good balance between capturing global and group-level variations, leading to the best overall performance. The SVM and GLM models also showed promising results. However, this is not the main concept of the project, which can be included for introducing the limitation of Bayesian model compared to them. Moreover, SVM and GLM also describe us the potential of using more parameters in Bayesian approach can lead to better result, which can be done with more computational resources in the potential development.
+
+Lastly, future work could focus on further exploring additional features to improve predictive performance.
 
 # 7. Self-Reflection
 

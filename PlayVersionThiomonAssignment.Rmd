@@ -2,8 +2,8 @@ Environment setup
 
 ```{r}
 rm(list = ls())
-setwd("c:/Users/nguye/OneDrive - Aalto University/University/First year/Project/Bayes_project/")
-# setwd("/notebooks/bda2024/Bayes_project")
+# setwd("c:/Users/nguye/OneDrive - Aalto University/University/First year/Project/Bayes_project/")
+setwd("/notebooks/bda2024/Bayes_project")
 SEED = 42
 if(!require(nnet)) {
   install.packages("nnet")
@@ -362,10 +362,10 @@ powerscale_plot_dens(model_draws, fit=thiomon_data_model_pooled,
                      help_text=FALSE)
 
 #Also the values look good!
-powerscale_sensitivity(model_draws, fit=thiomon_data_model_pooled) |> tt()
+powerscale_sensitivity(model_draws, fit=thiomon_data_model_pooled) 
 
 #Summarize the draws
-model_draws |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
+model_draws |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws()
 ```
 
 ```{r}
@@ -413,10 +413,10 @@ model_draws <- as_draws_df(thiomon_data_model_separate)
 # powerscale_plot_dens(model_draws, fit=thiomon_data_model_separate, help_text=FALSE)
 
 #Also the values look good!
-# powerscale_sensitivity(model_draws, fit=thiomon_data_model_separate) |> tt()
+powerscale_sensitivity(model_draws, fit=thiomon_data_model_separate)
 
 #Summarize the draws
-model_draws |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
+model_draws |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws()
 
 as_draws_df(model_draws) |> mcmc_areas(pars=c("b_hgb", "b_hct", "b_hbghctrat1", "b_hbghctrat2", "b_hbghctrat3", "b_hbghctrat4", "b_hbghctrat5"))
 ```
@@ -466,11 +466,10 @@ model_draws_hierarchical <- as_draws_df(thiomon_data_model_hier)
 powerscale_plot_dens(model_draws_hierarchical, fit=thiomon_data_model_hier, help_text=FALSE)
 
 # Also the values look good!
-powerscale_sensitivity(model_draws_hierarchical, fit=thiomon_data_model_hier) |>
-  tt()
+powerscale_sensitivity(model_draws_hierarchical, fit=thiomon_data_model_hier) 
 
 # Summarize the draws
-model_draws_hierarchical |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
+model_draws_hierarchical |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws()
 
 as_draws_df(model_draws_hierarchical) |> mcmc_areas(pars=c("b_hgb", "b_hct", "sd_hbghctrat__Intercept", "r_hbghctrat[1,Intercept]", "r_hbghctrat[2,Intercept]","r_hbghctrat[3,Intercept]","r_hbghctrat[4,Intercept]","r_hbghctrat[5,Intercept]"))
 ```
@@ -479,8 +478,7 @@ as_draws_df(model_draws_hierarchical) |> mcmc_areas(pars=c("b_hgb", "b_hct", "sd
 loo_compare(loo(thiomon_data_model_pooled), loo(thiomon_data_model_separate), loo(thiomon_data_model_hier)) |>
   as.data.frame() |>
   rownames_to_column("model") |>
-  dplyr::select(model, elpd_diff, se_diff) |>
-  tt()
+  dplyr::select(model, elpd_diff, se_diff)
 ```
 
 ```{r}
@@ -527,7 +525,6 @@ pp <- thiomon_data_model_pooled |>
 ```
 
 ```{r}
-
 model_svm <- svm(remission ~ 0 + days_of_life + wbc + hgb + hct + plt + rbc + mcv + mch + mchc + rdw + mpv + neut_percent + lymph_percent + mono_percent + eos_percent + baso_percent + sod + pot + chlor + co2 + un + creat + gluc + cal + prot + alb + ast + alt + alk + tbil, data = train_data)
 
 
@@ -551,8 +548,13 @@ print(conf_matrix_svm)
 
 # Predict probabilities on the test data
 pred_probs_svm_test <- predict(model_svm, test_data, probability = TRUE)
-roc_curve_svm <- roc(test_data$remission, pred_probs_svm_test)
-
+# confusion matrix for testing data
+pred_classes_svm_test <- ifelse(pred_probs_svm_test > optimal_threshold_svm$threshold, 1, 0)
+conf_matrix_svm_test <- confusionMatrix(as.factor(pred_classes_svm_test), as.factor(test_data$remission))
+print(conf_matrix_svm_test)
+# roc curve for testing data
+roc_curve_svm <- roc(test_data$remission, pred_probs_svm_test)  
+  
 # Plot the ROC curve
 plot(roc_curve_svm, main = "ROC Curve for SVM Model")
 ```
@@ -590,7 +592,7 @@ plot(roc_curve_glm, main = "ROC Curve for GLM Model")
 ```{r}
 
 model <- nnet(remission ~ days_of_life + wbc + hgb + hct + plt + rbc + mcv + mch + mchc + rdw + mpv + neut_percent + lymph_percent + mono_percent + eos_percent + baso_percent + sod + pot + chlor + co2 + un + creat + gluc + cal + prot + alb + ast + alt + alk + tbil, data = thiomon, size = 20,    # Number of hidden units 
-maxit = 100)  # For classification
+maxit = 10000)  # For classification
 
 # Predict probabilities on the training data
 pred_probs_nn <- predict(model, train_data, type = "raw")
@@ -646,8 +648,8 @@ roc_glm_train <- interpolate_smooth_roc_jitter(train_roc_curve_glm)
 roc_glm_test <- interpolate_smooth_roc_jitter(roc_curve_glm)
 roc_svm_train <- interpolate_smooth_roc_jitter(train_roc_curve_svm)
 roc_svm_test <- interpolate_smooth_roc_jitter(roc_curve_svm)
-roc_nn_train <- interpolate_smooth_roc_jitter(train_roc_curve_nn)
-roc_nn_test <- interpolate_smooth_roc_jitter(roc_curve_nn)
+# roc_nn_train <- interpolate_smooth_roc_jitter(train_roc_curve_nn)
+# roc_nn_test <- interpolate_smooth_roc_jitter(roc_curve_nn)
 
 # Calculate AUC values
 auc_pooled_train <- auc(train_roc_curve_pooled)
@@ -660,8 +662,8 @@ auc_glm_train <- auc(train_roc_curve_glm)
 auc_glm_test <- auc(roc_curve_glm)
 auc_svm_train <- auc(train_roc_curve_svm)
 auc_svm_test <- auc(roc_curve_svm)
-auc_nn_train <- auc(train_roc_curve_nn)
-auc_nn_test <- auc(roc_curve_nn)
+# auc_nn_train <- auc(train_roc_curve_nn)
+# auc_nn_test <- auc(roc_curve_nn)
 
 # Combine ROC curves into one data frame
 roc_data <- rbind(
