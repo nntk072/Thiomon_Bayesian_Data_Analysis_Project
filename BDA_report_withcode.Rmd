@@ -150,6 +150,11 @@ if(!require(caret)) {
   install.packages("caret")
   library(caret)
 }
+if (!require(patchwork)) {
+  install.packages("patchwork")
+  library(patchwork)
+}
+
 options(tinytable_format_num_fmt = "significant_cell", tinytable_format_digits = 2, tinytable_tt_digits=2)
 })
 ```
@@ -280,7 +285,7 @@ source_data$hgbrat <- as.character(source_data$hgbratnum)
 # Sample a subset of the 4500 rows to improve computation time
 MAX_DATA_SAMPLES <- 4500
 #Number of samples for the likelihood
-NUM_DATA_SAMPLES <- 4500
+NUM_DATA_SAMPLES <- 2000
 source_data <- na.omit(source_data)
 train_data_norm <- source_data[sample(MAX_DATA_SAMPLES, NUM_DATA_SAMPLES), ]
 
@@ -724,10 +729,6 @@ The best performing model is the hierarchical, closely followed by separate with
 ### 3.3.2 Model posterior distributions
 
 ```{r}
-if (!require(patchwork)) {
-  install.packages("patchwork")
-  library(patchwork)
-}
 
 ph1 <- thiomon_data_model_hier_1 |>
   spread_rvars(b_lymph_percent, r_hgbrat[hgbrat,]) |>
@@ -805,13 +806,6 @@ The LOO-R2 and Bayes-R2 values both match for all the models indicating that the
 
 Besides the implementation of Bayesian model, we would like to introduce the machine learning aspect to the model as well for comparison between Bayesian approach and simple machine learning approach, while finding and evaluating the correlation between model parameters for saving computational resources and suggesting the observation that we can try in Bayesian model as well. Support vector machine (SVM) model and General Linear model (GLM) will be described with the following parameters based on the abbreviation of dataset description /cite something here. In general, the model will use all of the parameters of the dataset, without any modification, for the purpose of comparison only 
 
-
-```{r}
-
-model_svm <- svm(remission ~ 0 + days_of_life + wbc + hgb + hct + plt + rbc + mcv + mch + mchc + rdw + mpv + neut_percent + lymph_percent + mono_percent + eos_percent + baso_percent + sod + pot + chlor + co2 + un + creat + gluc + cal + prot + alb + ast + alt + alk + tbil, data = train_data)
-
-```
-
 ```{r}
 model_glm <- glm(remission ~ 0 + days_of_life + wbc + hgb + hct + plt + rbc + mcv + mch + mchc + rdw + mpv + neut_percent + lymph_percent + mono_percent + eos_percent + baso_percent + sod + pot + chlor + co2 + un + creat + gluc + cal + prot + alb + ast + alt + alk + tbil, data = thiomon)
 ```
@@ -821,13 +815,13 @@ After building the model, dut to the objective of the model is classifation, we 
 
 ## 4.1. Confusion matrix and Evaluation metrics results
 
-Confusion matrix is a common method for binary classification task, where the prediction will be built in the augmented matrix, describing the actual status of the model prediction. There will....
+Confusion matrix is a common method for binary classification task, where the prediction will be built in the augmented matrix, describing the actual status of the model prediction. Here are the detailed results for each model:
 
-Besides that, we can see different evaluation metrics mathematical calculation as the consequence of confusion matrix as well...
+### 4.1.1. Pooled Model
 
-```{r include=FALSE}
+```{r}
 # Calculate predicted probabilities on training data
-train_predicted_probs_pooled <- posterior_predict(thiomon_data_model_pooled, newdata = train_data, draws = 4000, allow_new_levels = TRUE)
+train_predicted_probs_pooled <- posterior_predict(thiomon_data_model_pooled, newdata = train_data, draws = 10000, allow_new_levels = TRUE)
 train_mean_probs_pooled <- colMeans(train_predicted_probs_pooled)
 
 # Find optimal threshold using ROC curve on training data
@@ -848,11 +842,13 @@ conf_matrix_pooled <- confusionMatrix(as.factor(predicted_classes_pooled), as.fa
 print(conf_matrix_pooled)
 
 ```
+The accuracy of the pooled model is close to random guessing, as indicated by the balanced accuracy of 49.98%.
 
+### 4.1.2. Separate model
 
-```{r include=FALSE}
+```{r}
 # Calculate predicted probabilities on training data
-train_predicted_probs_separate <- posterior_predict(thiomon_data_model_separate, newdata = train_data, draws = 4000, allow_new_levels = TRUE)
+train_predicted_probs_separate <- posterior_predict(thiomon_data_model_separate, newdata = train_data, draws = 10000, allow_new_levels = TRUE)
 train_mean_probs_separate <- colMeans(train_predicted_probs_separate)
 
 # Find optimal threshold using ROC curve on training data
@@ -873,9 +869,13 @@ conf_matrix_separate <- confusionMatrix(as.factor(predicted_classes_separate), a
 print(conf_matrix_separate)
 ```
 
-```{r include=FALSE}
+The separate model performs better than the pooled model, with an accuracy of 60.32%. The balanced accuracy of 60.64% indicates a moderate performance. The model has a higher sensitivity, making it better at identifying true positives.
+
+### 4.1.3.
+
+```{r}
 # Calculate predicted probabilities on training data
-train_predicted_probs_hierarchical_1 <- posterior_predict(thiomon_data_model_hier_1, newdata = train_data, draws = 4000, allow_new_levels = TRUE)
+train_predicted_probs_hierarchical_1 <- posterior_predict(thiomon_data_model_hier_1, newdata = train_data, draws = 10000, allow_new_levels = TRUE)
 train_mean_probs_hierarchical_1 <- colMeans(train_predicted_probs_hierarchical_1)
 
 # Find optimal threshold using ROC curve on training data
@@ -896,11 +896,14 @@ conf_matrix_hierarchical_1 <- confusionMatrix(as.factor(predicted_classes_hierar
 print(conf_matrix_hierarchical_1)
 ```
 
+This hierarchical model has an accuracy of 59.07% and a balanced accuracy of 59.44%. The sensitivity is higher than the specificity, indicating that the model is better at identifying true positives.
+
+4.1.4.
 
 
-```{r include=FALSE}
+```{r}
 # Calculate predicted probabilities on training data
-train_predicted_probs_hierarchical_2 <- posterior_predict(thiomon_data_model_hier_2, newdata = train_data, draws = 4000, allow_new_levels = TRUE)
+train_predicted_probs_hierarchical_2 <- posterior_predict(thiomon_data_model_hier_2, newdata = train_data, draws = 10000, allow_new_levels = TRUE)
 train_mean_probs_hierarchical_2 <- colMeans(train_predicted_probs_hierarchical_2)
 
 # Find optimal threshold using ROC curve on training data
@@ -921,40 +924,11 @@ conf_matrix_hierarchical_2 <- confusionMatrix(as.factor(predicted_classes_hierar
 print(conf_matrix_hierarchical_2)
 ```
 
-```{r include=FALSE}
-# Predict probabilities on the training data
-pred_probs_svm <- predict(model_svm, train_data, probability = TRUE)
+Hierarchical model 2 performs slightly better than hierarchical model 1, with an accuracy of 59.78% and a balanced accuracy of 60.14%. The sensitivity is higher, indicating better identification of true positives.
 
-# Generate the ROC curve
-train_roc_curve_svm <- roc(train_data$remission, pred_probs_svm)
+### 4.1.5. GLM Model
 
-# Find the optimal threshold
-optimal_threshold_svm <- coords(train_roc_curve_svm, "best", ret = "threshold")
-
-# Apply the threshold to the test_data find
-
-# probs in test_data
-pred_probs_svm_test <- predict(model_svm, test_data, probability = TRUE)
-# Confusion matrix using the optimal_threshold_svm
-pred_classes_svm <- ifelse(pred_probs_svm > optimal_threshold_svm$threshold, 1, 0)
-conf_matrix_svm <- confusionMatrix(as.factor(pred_classes_svm), as.factor(train_data$remission))
-print(conf_matrix_svm)
-
-# Predict probabilities on the test data
-pred_probs_svm_test <- predict(model_svm, test_data, probability = TRUE)
-# confusion matrix for testing data
-pred_classes_svm_test <- ifelse(pred_probs_svm_test > optimal_threshold_svm$threshold, 1, 0)
-conf_matrix_svm_test <- confusionMatrix(as.factor(pred_classes_svm_test), as.factor(test_data$remission))
-print(conf_matrix_svm_test)
-# roc curve for testing data
-roc_curve_svm <- roc(test_data$remission, pred_probs_svm_test)  
-  
-# Plot the ROC curve
-plot(roc_curve_svm, main = "ROC Curve for SVM Model")
-```
-
-
-```{r include=FALSE}
+```{r}
 # Predict probabilities on the training data
 pred_probs_glm <- predict(model_glm, train_data, type = "response")
 
@@ -964,61 +938,30 @@ train_roc_curve_glm <- roc(train_data$remission, pred_probs_glm)
 # Find the optimal threshold
 optimal_threshold_glm <- coords(train_roc_curve_glm, "best", ret = "threshold")
 
-# Apply the threshold to the test_data find
-
-# probs in test_data
+# Apply the threshold to the test_data
 pred_probs_glm_test <- predict(model_glm, test_data, type = "response") 
-# Confusion matrix using the optimal_threshold_glm
 
-pred_classes_glm <- ifelse(pred_probs_glm > optimal_threshold_glm$threshold, 1, 0)
-conf_matrix_glm <- confusionMatrix(as.factor(pred_classes_glm), as.factor(train_data$remission))
+# Convert probabilities to class labels using the optimal threshold
+pred_classes_glm_test <- ifelse(pred_probs_glm_test > optimal_threshold_glm$threshold, 1, 0)
+
+# Confusion matrix using the optimal_threshold_glm
+conf_matrix_glm <- confusionMatrix(as.factor(pred_classes_glm_test), as.factor(test_data$remission))
 print(conf_matrix_glm)
 
-# Predict probabilities on the test data
-pred_probs_glm_test <- predict(model_glm, test_data, type = "response")
+# Plot the ROC curve
 roc_curve_glm <- roc(test_data$remission, pred_probs_glm_test)
-
+plot(roc_curve_glm, main = "ROC Curve for GLM Model")
 # Plot the ROC curve
 # plot(roc_curve_glm, main = "ROC Curve for GLM Model")
 ```
 
-```{r include=FALSE}
-# Predict probabilities on the training data
-pred_probs_nn <- predict(model, train_data, type = "raw")
-
-# Generate the ROC curve
-train_roc_curve_nn <- roc(train_data$remission, pred_probs_nn)
-
-# Find the optimal threshold
-optimal_threshold_nn <- coords(train_roc_curve_nn, "best", ret = "threshold")
-
-# Apply the threshold to the training data
-pred_classes_nn <- ifelse(pred_probs_nn > optimal_threshold_nn$threshold, 1, 0)
-conf_matrix_nn <- confusionMatrix(as.factor(pred_classes_nn), as.factor(train_data$remission))
-print(conf_matrix_nn)
-
-# Predict probabilities on the test data
-pred_probs_nn_test <- predict(model, test_data, type = "raw")
-
-# Apply the threshold to the test data
-pred_classes_nn_test <- ifelse(pred_probs_nn_test > optimal_threshold_nn$threshold, 1, 0)
-conf_matrix_nn_test <- confusionMatrix(as.factor(pred_classes_nn_test), as.factor(test_data$remission))
-print(conf_matrix_nn_test)
-
-# Generate the ROC curve
-roc_curve_nn <- roc(test_data$remission, pred_probs_nn_test)
-
-# Plot the ROC curve
-# plot(roc_curve_nn, main = "ROC Curve for Neural Network Model")
-```
-
-
+The GLM model outperforms all other models with an accuracy of 67.32% The model has a good balance between sensitivity and specificity, making it effective at identifying both true positives and true negatives.
 
 ## 4.2. ROC curves and AUC values
 
 
 
-```{r include=FALSE}
+```{r}
 # Function to interpolate and smooth ROC curve with jitter
 interpolate_smooth_roc_jitter <- function(roc_curve, n = 100, jitter_amount = 1e-5) {
   roc_smooth <- smooth(roc_curve)
@@ -1041,10 +984,6 @@ roc_hierarchical_2_test <- interpolate_smooth_roc_jitter(roc_curve_hierarchical_
 # glm, svm and nn model too
 roc_glm_train <- interpolate_smooth_roc_jitter(train_roc_curve_glm)
 roc_glm_test <- interpolate_smooth_roc_jitter(roc_curve_glm)
-roc_svm_train <- interpolate_smooth_roc_jitter(train_roc_curve_svm)
-roc_svm_test <- interpolate_smooth_roc_jitter(roc_curve_svm)
-# roc_nn_train <- interpolate_smooth_roc_jitter(train_roc_curve_nn)
-# roc_nn_test <- interpolate_smooth_roc_jitter(roc_curve_nn)
 
 # Calculate AUC values
 auc_pooled_train <- auc(train_roc_curve_pooled)
@@ -1057,10 +996,6 @@ auc_hierarchical_2_train <- auc(train_roc_curve_hierarchical_2)
 auc_hierarchical_2_test <- auc(roc_curve_hierarchical_2)
 auc_glm_train <- auc(train_roc_curve_glm)
 auc_glm_test <- auc(roc_curve_glm)
-auc_svm_train <- auc(train_roc_curve_svm)
-auc_svm_test <- auc(roc_curve_svm)
-# auc_nn_train <- auc(train_roc_curve_nn)
-# auc_nn_test <- auc(roc_curve_nn)
 
 # Combine ROC curves into one data frame
 
@@ -1069,19 +1004,14 @@ train_roc_data <- rbind(
   data.frame(roc_separate_train, model = paste("Separate Train (AUC =", round(auc_separate_train, 4), ")")),
   data.frame(roc_hierarchical_1_train, model = paste("Hierarchical with Global Intercept Train (AUC =", round(auc_hierarchical_1_train, 4), ")")),
   data.frame(roc_hierarchical_2_train, model = paste("Hierarchical without Global Intercept Train (AUC =", round(auc_hierarchical_2_train, 4), ")")),
-  data.frame(roc_glm_train, model = paste("GLM Train (AUC =", round(auc_glm_train, 4), ")")),
-  data.frame(roc_svm_train, model = paste("SVM Train (AUC =", round(auc_svm_train, 4), ")"))
-  #data.frame(roc_nn_train, model = paste("NN Train (AUC =", round(auc_nn_train, 4), ")")),
-  #data.frame(roc_nn_test, model = paste("NN Test (AUC =", round(auc_nn_test, 4), ")"))
+  data.frame(roc_glm_train, model = paste("GLM Train (AUC =", round(auc_glm_train, 4), ")"))
   )
 test_roc_data <- rbind(
   data.frame(roc_pooled_test, model = paste("Pool Test (AUC =", round(auc_pooled_test, 4), ")")),
   data.frame(roc_separate_test, model = paste("Separate Test (AUC =", round(auc_separate_test, 4), ")")),
   data.frame(roc_hierarchical_1_test, model = paste("Hierarchical with Global Intercept Test (AUC =", round(auc_hierarchical_1_test, 4), ")")),
   data.frame(roc_hierarchical_2_test, model = paste("Hierarchical without Global Intercept Test (AUC =", round(auc_hierarchical_2_test, 4), ")")),
-  data.frame(roc_glm_test, model = paste("GLM Test (AUC =", round(auc_glm_test, 4), ")")),
-  data.frame(roc_svm_test, model = paste("SVM Test (AUC =", round(auc_svm_test, 4), ")"))
-  #data.frame(roc_nn_test, model = paste("NN Test (AUC =", round(auc_nn_test, 4), ")"))
+  data.frame(roc_glm_test, model = paste("GLM Test (AUC =", round(auc_glm_test, 4), ")"))
   )
 # Plot all ROC curves in one plot
 ggplot(train_roc_data, aes(x = fpr, y = tpr, color = model)) +
@@ -1095,51 +1025,309 @@ ggplot(test_roc_data, aes(x = fpr, y = tpr, color = model)) +
 
 ```
 
-According to the evaluation result, we could see that almost all the models are having the AUC difference between training and testing data maximum 7%, which can be an acceptable value. Moreover, the Bayesian approach cannot be better than the GLM approach, due to the reason of having less occupied parameters in the model. We can base on that to improve our model as well.
+According to the evaluation result, we could see that almost all the models are having the AUC difference between training and testing data maximum 7%, which can be an acceptable value. Moreover, the Bayesian approach cannot be better than the GLM approach. One of the proposal for this is because of having less occupied parameters in the model. We can base on that to improve our model as well.
 
-However, with the AUC values representing in SVM model, we can observe the affect of using multiple variables without filtering can also lead to the overfitting problem, which is the problem of choosing parameters without carefully decided. Therefore, the number and the choice of paramters must be experimental carefully
+
+### 4.3. Discussion.
+
+According to the evaluation results, the GLM model outperforms the Bayesian models in terms of accuracy and AUC. Moreover, asexpected from the bayesian analysis, the difference between Separate and Hierarchical here is not clearly. The Bayesian models show moderate performance but do not surpass the GLM model. 
 
 # 5. Discussion of Issues and Potential Improvements
 
-According to the result, we do not have any problems with the posterior check or the model evaluation status. The only issues that we need to improve is the improvement in model accuracy. Increasing the number of parameters and normalizing the parameters into different categories and medical terms can help improve the model accuracy.
+The main issue observed is the moderate performance of the Bayesian models compared to the GLM model. To improve the accuracy of the Bayesian models, we can consider increasing the number of variables and normalizing the parameters into different categories and medical terms. This can help improve the model's accuracy and predictive power.
+
+## 5.1. Improving the number of training sample
+
+An example of applying 4500 variables into the separate model with more  
 
 An example for that is using different parameters, when we decide the model into different parameters, which has been normalized as follow
 
-```log_siirat
+```{r include = False}
+#Process the data set with some additional processing
+source_data <- thiomon
+
+#Take the ratio of hgb and hct which describes if the patient is anaemic or not
+source_data$hbghctrat = round(thiomon$hgb/thiomon$hct,2)
+
+#Group into 5 groups
+source_data$hbghctrat <- cut(source_data$hbghctrat, breaks = seq(min(source_data$hbghctrat), max(source_data$hbghctrat), length.out = 6), labels = c(1,2,3,4,5))
+
+#Convert this to a character label
+source_data$hbghctrat <- as.character(source_data$hbghctrat)
+
+source_data$hgbratnum <- cut(source_data$hgb, breaks = seq(min(source_data$hgb), max(source_data$hgb), length.out = 6), labels = c(1,2,3,4,5))
+source_data$hgbrat <- as.character(source_data$hgbratnum)
+# Sample a subset of the 4500 rows to improve computation time
+MAX_DATA_SAMPLES <- 4500
+#Number of samples for the likelihood
+NUM_DATA_SAMPLES <- 4500
+source_data <- na.omit(source_data)
+train_data_norm <- source_data[sample(MAX_DATA_SAMPLES, NUM_DATA_SAMPLES), ]
+
+train_data <- train_data_norm
+train_data <- na.omit(train_data)
+test_data <- source_data[4501:nrow(source_data), ]
 ```
 
+
+
+```{r warning=FALSE, message=FALSE}
+ref_thiomon_formulae_separate <- bf(remission ~ 0 + hgbrat + lymph_percent, family = "bernoulli")
+
+thiomon_priors_default_priors_separate <- get_prior(ref_thiomon_formulae_separate, data = train_data)
+
+(thiomon_set_priors_informative_separate <- c(
+  prior(
+    normal(-2,5),
+    class = "b"
+  ),
+  
+  prior(
+    normal(0,1),
+    class = "b",
+    coef = "lymph_percent"
+  )
+))
+
+thiomon_data_model_separate_improvement <- brm(
+    formula = ref_thiomon_formulae_separate,
+    prior = thiomon_set_priors_informative_separate,
+    data = train_data,
+    iter = 2000,
+    warmup = 1000,
+    chains = 4,                           # Number of chains
+    control = list(
+      adapt_delta = 0.9,                 # Increase acceptance rate target if needed
+      max_treedepth = 20                 # Increase the tree depth if needed
+    ),
+    threads = threading(2), cores = 8, backend = "cmdstanr"
+)
 ```
+
+```{r}
+thiomon_data_model_separate_improvement |>
+  powerscale_plot_dens(help_text=FALSE)
+thiomon_data_model_separate_improvement |>
+  powerscale_sensitivity() |> tt()
+
+thiomon_data_model_separate_improvement
+
+loo(thiomon_data_model_separate_improvement)
+thiomon_data_model_separate_improvement <- add_criterion(thiomon_data_model_separate_improvement, criterion='loo', reloo=TRUE)
+pp_check(thiomon_data_model_separate_improvement, type = 'dens_overlay', ndraws = 200)
+pp_check(thiomon_data_model_separate_improvement, type = 'loo_pit_qq', ndraws = 4000)
+pp_check(thiomon_data_model_separate_improvement, type = 'pit_ecdf', ndraws = 4000)
+as_draws_df(thiomon_data_model_separate_improvement)  |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
 ```
+All of the bayesian check methods have been produced and did not provide any problems compared to the previous model. Therefore, we could come to evaluation session
+```{r}
+# Calculate predicted probabilities on training data
+train_predicted_probs_separate_improvement <- posterior_predict(thiomon_data_model_separate_improvement, newdata = train_data, draws = 10000)
+train_mean_probs_separate_improvement <- colMeans(train_predicted_probs_separate_improvement)
+
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_separate_improvement <- roc(train_data$remission, train_mean_probs_separate_improvement)
+optimal_threshold_separate_improvement <- coords(train_roc_curve_separate_improvement, "best", ret = "threshold")
+
+# Predict on test data
+predicted_probs_separate_improvement <- posterior_predict(thiomon_data_model_separate_improvement, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_separate_improvement <- colMeans(predicted_probs_separate_improvement)
+
+# ROC Curve
+roc_curve_separate_improvement <- roc(test_data$remission, mean_probs_separate_improvement)
+# plot(roc_curve_separate, main = "ROC Curve for Separate Model")
+
+# Confusion Matrix
+predicted_classes_separate_improvement <- ifelse(mean_probs_separate_improvement >= optimal_threshold_separate_improvement$threshold, 1, 0)
+conf_matrix_separate_improvement <- confusionMatrix(as.factor(predicted_classes_separate_improvement), as.factor(test_data$remission))
+print(conf_matrix_separate_improvement)
+```
+
+Base on observation, the actual accuracy of the model here is larger, but not significant. However, the generalization of the model is better due to the decrease in the sensitivity and increase and specificity. This is a good sign for the model as well.
+
+Moreover, a comparison between using less and more data in ROC/AUC values can be presented below
+
+## 5.2. Increasing the number of parameters in the original model.
+
+The model here can be computed with more parameters, with the purpose of producing a better result. However, using more paramters can also lead to increase the model complexity, which may not be approriate in the task's project. Therefore, an example of changing the separate model formula with adding 4 more parameters hct, wbc, mpv, mchc into the model and we can observe the result.
+
+
+```{r include = False}
+#Process the data set with some additional processing
+source_data <- thiomon
+
+#Take the ratio of hgb and hct which describes if the patient is anaemic or not
+source_data$hbghctrat = round(thiomon$hgb/thiomon$hct,2)
+
+#Group into 5 groups
+source_data$hbghctrat <- cut(source_data$hbghctrat, breaks = seq(min(source_data$hbghctrat), max(source_data$hbghctrat), length.out = 6), labels = c(1,2,3,4,5))
+
+#Convert this to a character label
+source_data$hbghctrat <- as.character(source_data$hbghctrat)
+
+source_data$hgbratnum <- cut(source_data$hgb, breaks = seq(min(source_data$hgb), max(source_data$hgb), length.out = 6), labels = c(1,2,3,4,5))
+source_data$hgbrat <- as.character(source_data$hgbratnum)
+# Sample a subset of the 4500 rows to improve computation time
+MAX_DATA_SAMPLES <- 4500
+#Number of samples for the likelihood
+NUM_DATA_SAMPLES <- 2000
+source_data <- na.omit(source_data)
+train_data_norm <- source_data[sample(MAX_DATA_SAMPLES, NUM_DATA_SAMPLES), ]
+
+train_data <- train_data_norm
+train_data <- na.omit(train_data)
+test_data <- source_data[4501:nrow(source_data), ]
+```
+
+```{r warning=FALSE, message=FALSE}
+ref_thiomon_formulae_separate <- bf(remission ~ 0 + hgbrat + lymph_percent + hct + wbc + mpv + mchc, family = "bernoulli")
+
+thiomon_priors_default_priors_separate <- get_prior(ref_thiomon_formulae_separate, data = train_data)
+
+(thiomon_set_priors_informative_separate <- c(
+  prior(
+    normal(19.5,20),
+    class = "b",
+    coef = "lymph_percent"
+  ),
+  
+  prior(
+    normal(7.5,10),
+    class = "b",
+    coef = "wbc"
+  ),
+  
+  prior(
+    normal(34,5),
+    class = "b",
+    coef = "mchc"
+  ),
+
+  prior(
+    normal(37.1,10),
+    class = "b",
+    coef = "hct"
+  ),
+  
+  prior(
+    normal(8.2,5),
+    class = "b",
+    coef = "mpv"
+  )
+))
+
+thiomon_data_model_separate_improvement_1 <- brm(
+    formula = ref_thiomon_formulae_separate,
+    prior = thiomon_set_priors_informative_separate,
+    data = train_data,
+    iter = 2000,
+    warmup = 1000,
+    chains = 4,                           # Number of chains
+    control = list(
+      adapt_delta = 0.9,                 # Increase acceptance rate target if needed
+      max_treedepth = 20                 # Increase the tree depth if needed
+    ),
+    threads = threading(2), cores = 8, backend = "cmdstanr"
+)
+```
+
+
+```{r}
+thiomon_data_model_separate_improvement_1 |>
+  powerscale_plot_dens(help_text=FALSE)
+thiomon_data_model_separate_improvement_1 |>
+  powerscale_sensitivity() |> tt()
+
+thiomon_data_model_separate_improvement_1
+
+loo(thiomon_data_model_separate_improvement_1)
+thiomon_data_model_separate_improvement_1 <- add_criterion(thiomon_data_model_separate_improvement_1, criterion='loo', reloo=TRUE)
+pp_check(thiomon_data_model_separate_improvement_1, type = 'dens_overlay', ndraws = 200)
+pp_check(thiomon_data_model_separate_improvement_1, type = 'loo_pit_qq', ndraws = 4000)
+pp_check(thiomon_data_model_separate_improvement_1, type = 'pit_ecdf', ndraws = 4000)
+as_draws_df(thiomon_data_model_separate_improvement_1)  |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
+```
+```{r}
+# Calculate predicted probabilities on training data
+train_predicted_probs_separate_improvement_1 <- posterior_predict(thiomon_data_model_separate_improvement_1, newdata = train_data, draws = 10000)
+train_mean_probs_separate_improvement_1 <- colMeans(train_predicted_probs_separate_improvement_1)
+
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_separate_improvement_1 <- roc(train_data$remission, train_mean_probs_separate_improvement_1)
+optimal_threshold_separate_improvement_1 <- coords(train_roc_curve_separate_improvement_1, "best", ret = "threshold")
+
+# Predict on test data
+predicted_probs_separate_improvement_1 <- posterior_predict(thiomon_data_model_separate_improvement_1, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_separate_improvement_1 <- colMeans(predicted_probs_separate_improvement_1)
+
+# ROC Curve
+roc_curve_separate_improvement_1 <- roc(test_data$remission, mean_probs_separate_improvement_1)
+# plot(roc_curve_separate, main = "ROC Curve for Separate Model")
+
+# Confusion Matrix
+predicted_classes_separate_improvement_1 <- ifelse(mean_probs_separate_improvement_1 >= optimal_threshold_separate_improvement_1$threshold, 1, 0)
+conf_matrix_separate_improvement_1 <- confusionMatrix(as.factor(predicted_classes_separate_improvement_1), as.factor(test_data$remission))
+print(conf_matrix_separate_improvement_1)
+```
+
+## 5.3. ROC curves/AUC values comparison
+
+```{r}
+# Calculate and interpolate ROC curves with jitter
+roc_separate_train <- interpolate_smooth_roc_jitter(train_roc_curve_separate)
+roc_separate_test <- interpolate_smooth_roc_jitter(roc_curve_separate)
+roc_separate_improvement_train <- interpolate_smooth_roc_jitter(train_roc_curve_separate_improvement)
+roc_separate_improvement_test <- interpolate_smooth_roc_jitter(roc_curve_separate_improvement)
+roc_separate_improvement_1_train <- interpolate_smooth_roc_jitter(train_roc_curve_separate_improvement_1)
+roc_separate_improvement_1_test <- interpolate_smooth_roc_jitter(roc_curve_separate_improvement_1)
+
+# Calculate AUC values
+auc_separate_train <- auc(train_roc_curve_separate)
+auc_separate_test <- auc(roc_curve_separate)
+auc_separate_improvement_train <- auc(train_roc_curve_separate_improvement)
+auc_separate_improvement_test <- auc(roc_curve_separate_improvement)
+auc_separate_improvement_1_train <- auc(train_roc_curve_separate_improvement_1)
+auc_separate_improvement_1_test <- auc(roc_curve_separate_improvement_1)
+
+# Combine ROC curves into one data frame
+
+train_roc_data <- rbind(
+  data.frame(roc_separate_train, model = paste("Separate Train (AUC =", round(auc_separate_train, 4), ")")),
+  data.frame(roc_separate_improvement_train, model = paste("Separate model + more training samples (AUC =", round(auc_separate_improvement_train, 4), ")")),
+  data.frame(roc_separate_improvement_1_train, model = paste("Separate model + more variables (AUC =", round(auc_separate_improvement_1_train, 4), ")"))
+)
+test_roc_data <- rbind(
+  data.frame(roc_separate_test, model = paste("Separate Test (AUC =", round(auc_separate_test, 4), ")")),
+    data.frame(roc_separate_improvement_test, model = paste("Separate model + more training samples (AUC =", round(auc_separate_improvement_test, 4), ")")),
+    data.frame(roc_separate_improvement_1_test, model = paste("Separate model + more variables (AUC =", round(auc_separate_improvement_1_test, 4), ")"))
+)
+# Plot all ROC curves in one plot
+ggplot(train_roc_data, aes(x = fpr, y = tpr, color = model)) +
+  geom_line() +
+  labs(title = "Train ROC Curves for Different Models", x = "False Positive Rate", y = "True Positive Rate") +
+  theme_minimal()
+ggplot(test_roc_data, aes(x = fpr, y = tpr, color = model)) +
+  geom_line() +
+  labs(title = "Test ROC Curves for Different Models", x = "False Positive Rate", y = "True Positive Rate") +
+  theme_minimal()
+```
+
+As you can observe, more training samples here do not print any differences, while more variables can lead to better model accuracy, having better ROC curves and AUC values. This can be a potential option for us to analyze and improve in the future.
+
+## 5.2. Potential Improving
+
+Moreover, besides these trials that have been implemented, there can be room for improvement. An example is normalizing the parameters into medical terms for building model with efficient parameters only. Furthermore, we have not tried to used with spline approach in the model, or with multi-parameters in hierarchical models. They are worth for considering when we approach the problems and can be the necessary steps for improvement.
+
 # 6. Conclusion
 
-After evaluating various models on the Thiomon dataset, we can conclude that the effects of the variables regarding remission are considerable. The Bayesian approach for this remission classification task is not compatible, especially with the current model. However,  However, the Bayesian approach is computationally complex, where increasing the number of parameters will lead to more time consumption during the fitting process. Therefore, we can expect more accuracy improvement when we build a larger model.
+After evaluating various models on the Thiomon dataset, we can conclude that the effects of the variables regarding remission are considerable. The Bayesian approach for this remission classification task is a approriate approach. However, the Bayesian approach is computationally complex, where increasing the number of parameters will lead to more time consumption during the fitting process, the model accuracy will be better proportional to the time training. Therefore, we can expect more accuracy improvement when we build a larger model, in an actual research project.
 
-Discussing the pooled model with regression coefficients only, we can see that it follows a random guess, leading to AUC values approximating 0.54, which is the accuracy of the dataset distribution as well.
 
-With the different Bayesian models, the parameters we can obtain for each model are:
-
-Separate model
-```
-remission ~ (-2.50 +- 0.51) * hgbrat1  + (-1.37 +- 0.12)* hgbrat2  + (-1.14, SE = 0.08) * hgbrat3  + (-0.24, SE = 0.08) * hgbrat4  + (0.17, SE = 0.20) *hgbrat5  + 0.05 * lymph_percent 
-```
-
-Hierarchical model with global coefficient:
-```
-remission ~ Intercept (-1.5, SE = 0.2) + lymph_percent (0.05, SE = 0.00) + (0.036 +- 0.008) sd_hgbrat__Intercept 
-```
-hierarchical model without global coefficient:
-```
-remission ~ lymph_percent (0.05, SE = 0.00) + sd_hgbrat__Intercept (0.036, SE = 0.008)
-
-```
-
-Compared to these models, the hierarchical models, particularly the one with a global coefficient, provided a good balance between capturing global and group-level variations, leading to the best overall performance. The SVM and GLM models also showed promising results. However, this is not the main concept of the project, which can be included for introducing the limitation of Bayesian model compared to them. Moreover, SVM and GLM also describe us the potential of using more parameters in Bayesian approach can lead to better result, which can be done with more computational resources in the potential development.
-
-Lastly, future work could focus on further exploring additional features to improve predictive performance.
+Compared to these models, the hierarchical models, particularly the one with a global coefficient, provided a good balance between capturing global and group-level variations, leading to the best overall performance. The GLM models also showed promising results with less computational resources, which can also been a threshold for us to recompute the bayesian model in a researc project. Moreover, GLM also describe us the potential of using more parameters in Bayesian approach can lead to better result, which have also experimented in Potential section.
 
 # 7. Self-Reflection
 
-Regarding to the project, we have learned how to collaborate and help each other in the group. The project has been done with multiple trials and errors, with different parameter fitting. And the final result is the balance trade-off of accuracy and time training. In some cases, some evaluation metrics need the knowledge, leading to our discussion and revision of course content material and providing the oppurtunity for us to improve ourself throughout the professor's project report. Even though the Bayesian classification result cannot be used in real research work and does not have a good accuracy compared to the other research publication, the application of Bayesian and how to evaluate the model can help us for building our fundamental knowledge and inspire our future research path. Moreover, the process of doing the project together can also enhance our skill in teamwork and communication. We really appreciate the oppurtunity from the course orientation to the final project.
+Regarding to the project, we have learned how to collaborate and help each other in the group. The project has been done with multiple trials and errors, with different parameter fitting. And the final result is the balance trade-off of accuracy and time training. In some cases, some evaluation metrics need the knowledge, leading to our discussion and revision of course content material and providing the opportunity for us to improve ourselves throughout the professor's project report. Even though the Bayesian classification result cannot be used in real research work and does not have a good accuracy compared to the other research publication, the application of Bayesian and how to evaluate the model can help us for building our fundamental knowledge and inspire our future research path. Moreover, the process of doing the project together can also enhance our skill in teamwork and communication. We really appreciate the opportunity from the course orientation to the final project.
 
 # Appendix: Environment setup
 
@@ -1237,6 +1425,11 @@ if(!require(caret)) {
   library(caret)
 }
 options(tinytable_format_num_fmt = "significant_cell", tinytable_format_digits = 2, tinytable_tt_digits=2)
+if (!require(patchwork)) {
+  install.packages("patchwork")
+  library(patchwork)
+}
+
 ```
 
 # References
