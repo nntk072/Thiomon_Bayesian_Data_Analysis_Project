@@ -2,17 +2,16 @@
 title: "Thiomon Data Analysis Report"
 author: "Long Nguyen and Amaanat Ali"
 output:
+  pdf_document:
+    toc: yes
+    toc_depth: 5
   html_document:
     toc: yes
     toc_depth: '5'
     df_print: paged
-  pdf_document:
-    toc: yes
-    toc_depth: 5
 bibliography: references.bib
 csl: vancouver.csl
 ---
-
 
 ```{r include=FALSE}
 suppressWarnings({
@@ -159,8 +158,6 @@ options(tinytable_format_num_fmt = "significant_cell", tinytable_format_digits =
 })
 ```
 
-
-
 \newpage
 
 (This is an example of using reference) This study explores the use of machine learning algorithms for predicting clinical outcomes with thiopurines [@10.1093/ecco-jcc/jjx014]. you can change the sections/subsections/name according to your idea
@@ -298,7 +295,8 @@ test_data <- source_data[4501:nrow(source_data), ]
 
 There are 30 blood parameters which are identified by the database. Using the MLE algorithm 'lm', we can quickly check that all of these variables together explain 66% of the variability in the data set. Unfortunately, using all of them are computationally inefficient and will take long times to fit a bayesian model. Hence we need to prune the list down.
 
-```{#lm_formula <- remission ~ 0 + days_of_life + wbc + hgb + hct + plt + rbc + mcv + mch + mchc + rdw + mpv + lymph_percent + neut_percent + mono_percent + eos_percent + baso_percent + sod + pot + chlor + co2 + un + creat + gluc + cal + prot + alb + ast + alt + alk + tbil}
+```         
+#lm_formula <- remission ~ 0 + days_of_life + wbc + hgb + hct + plt + rbc + mcv + mch + mchc + rdw + mpv + lymph_percent + neut_percent + mono_percent + eos_percent + baso_percent + sod + pot + chlor + co2 + un + creat + gluc + cal + prot + alb + ast + alt + alk + tbil}
 #residual sd = 0.44, R-Squared = 0.66
 
 #residual sd = 0.47, R-Squared = 0.60
@@ -311,6 +309,8 @@ ast
 
 lm1 <- lm(formula = lm_formula, data = train_data)
 display(lm1)
+install.packages("rstanarm")
+library(rstanarm)
 
 fitg <- stan_glm(formula = lm_formula, data = train_data, refresh=0)
 summary(fitg)
@@ -804,12 +804,13 @@ The LOO-R2 and Bayes-R2 values both match for all the models indicating that the
 
 ## 3.4. Non-Bayesian model
 
-Besides the implementation of Bayesian model, we would like to introduce the machine learning aspect to the model as well for comparison between Bayesian approach and simple machine learning approach, while finding and evaluating the correlation between model parameters for saving computational resources and suggesting the observation that we can try in Bayesian model as well. Support vector machine (SVM) model and General Linear model (GLM) will be described with the following parameters based on the abbreviation of dataset description /cite something here. In general, the model will use all of the parameters of the dataset, without any modification, for the purpose of comparison only 
+Besides the implementation of Bayesian model, we would like to introduce the machine learning aspect to the model as well for comparison between Bayesian approach and simple machine learning approach, while finding and evaluating the correlation between model parameters for saving computational resources and suggesting the observation that we can try in Bayesian model as well. Support vector machine (SVM) model and General Linear model (GLM) will be described with the following parameters based on the abbreviation of dataset description /cite something here. In general, the model will use all of the parameters of the dataset, without any modification, for the purpose of comparison only
 
 ```{r}
 model_glm <- glm(remission ~ 0 + days_of_life + wbc + hgb + hct + plt + rbc + mcv + mch + mchc + rdw + mpv + neut_percent + lymph_percent + mono_percent + eos_percent + baso_percent + sod + pot + chlor + co2 + un + creat + gluc + cal + prot + alb + ast + alt + alk + tbil, data = thiomon)
 ```
-# 4. Evaluation results 
+
+# 4. Evaluation results
 
 After building the model, dut to the objective of the model is classifation, we can use classification evaluation metrics aspect for evaluation the model result. Two suggestion that we have implemented: using confusion matrix with evaluation metrics mathematical calculation, and using ROC curves with AUC values for different model comparison, which can be elaborated in session 4.1. and 4.2.
 
@@ -842,6 +843,7 @@ conf_matrix_pooled <- confusionMatrix(as.factor(predicted_classes_pooled), as.fa
 print(conf_matrix_pooled)
 
 ```
+
 The accuracy of the pooled model is close to random guessing, as indicated by the balanced accuracy of 49.98%.
 
 ### 4.1.2. Separate model
@@ -871,7 +873,7 @@ print(conf_matrix_separate)
 
 The separate model performs better than the pooled model, with an accuracy of 60.32%. The balanced accuracy of 60.64% indicates a moderate performance. The model has a higher sensitivity, making it better at identifying true positives.
 
-### 4.1.3.
+### 4.1.3. Hierarchical model
 
 ```{r}
 # Calculate predicted probabilities on training data
@@ -898,8 +900,7 @@ print(conf_matrix_hierarchical_1)
 
 This hierarchical model has an accuracy of 59.07% and a balanced accuracy of 59.44%. The sensitivity is higher than the specificity, indicating that the model is better at identifying true positives.
 
-4.1.4.
-
+### 4.1.4. Hierarchical model with pooled
 
 ```{r}
 # Calculate predicted probabilities on training data
@@ -958,8 +959,6 @@ plot(roc_curve_glm, main = "ROC Curve for GLM Model")
 The GLM model outperforms all other models with an accuracy of 67.32% The model has a good balance between sensitivity and specificity, making it effective at identifying both true positives and true negatives.
 
 ## 4.2. ROC curves and AUC values
-
-
 
 ```{r}
 # Function to interpolate and smooth ROC curve with jitter
@@ -1027,10 +1026,9 @@ ggplot(test_roc_data, aes(x = fpr, y = tpr, color = model)) +
 
 According to the evaluation result, we could see that almost all the models are having the AUC difference between training and testing data maximum 7%, which can be an acceptable value. Moreover, the Bayesian approach cannot be better than the GLM approach. One of the proposal for this is because of having less occupied parameters in the model. We can base on that to improve our model as well.
 
-
 ### 4.3. Discussion.
 
-According to the evaluation results, the GLM model outperforms the Bayesian models in terms of accuracy and AUC. Moreover, asexpected from the bayesian analysis, the difference between Separate and Hierarchical here is not clearly. The Bayesian models show moderate performance but do not surpass the GLM model. 
+According to the evaluation results, the GLM model outperforms the Bayesian models in terms of accuracy and AUC. Moreover, asexpected from the bayesian analysis, the difference between Separate and Hierarchical here is not clearly. The Bayesian models show moderate performance but do not surpass the GLM model.
 
 # 5. Discussion of Issues and Potential Improvements
 
@@ -1038,11 +1036,11 @@ The main issue observed is the moderate performance of the Bayesian models compa
 
 ## 5.1. Improving the number of training sample
 
-An example of applying 4500 variables into the separate model with more  
+An example of applying 4500 variables into the separate model with more
 
 An example for that is using different parameters, when we decide the model into different parameters, which has been normalized as follow
 
-```{r include = False}
+```{r include = FALSE}
 #Process the data set with some additional processing
 source_data <- thiomon
 
@@ -1068,8 +1066,6 @@ train_data <- train_data_norm
 train_data <- na.omit(train_data)
 test_data <- source_data[4501:nrow(source_data), ]
 ```
-
-
 
 ```{r warning=FALSE, message=FALSE}
 ref_thiomon_formulae_separate <- bf(remission ~ 0 + hgbrat + lymph_percent, family = "bernoulli")
@@ -1119,7 +1115,9 @@ pp_check(thiomon_data_model_separate_improvement, type = 'loo_pit_qq', ndraws = 
 pp_check(thiomon_data_model_separate_improvement, type = 'pit_ecdf', ndraws = 4000)
 as_draws_df(thiomon_data_model_separate_improvement)  |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
 ```
+
 All of the bayesian check methods have been produced and did not provide any problems compared to the previous model. Therefore, we could come to evaluation session
+
 ```{r}
 # Calculate predicted probabilities on training data
 train_predicted_probs_separate_improvement <- posterior_predict(thiomon_data_model_separate_improvement, newdata = train_data, draws = 10000)
@@ -1151,8 +1149,7 @@ Moreover, a comparison between using less and more data in ROC/AUC values can be
 
 The model here can be computed with more parameters, with the purpose of producing a better result. However, using more paramters can also lead to increase the model complexity, which may not be approriate in the task's project. Therefore, an example of changing the separate model formula with adding 4 more parameters hct, wbc, mpv, mchc into the model and we can observe the result.
 
-
-```{r include = False}
+```{r include = FALSE}
 #Process the data set with some additional processing
 source_data <- thiomon
 
@@ -1231,7 +1228,6 @@ thiomon_data_model_separate_improvement_1 <- brm(
 )
 ```
 
-
 ```{r}
 thiomon_data_model_separate_improvement_1 |>
   powerscale_plot_dens(help_text=FALSE)
@@ -1247,6 +1243,7 @@ pp_check(thiomon_data_model_separate_improvement_1, type = 'loo_pit_qq', ndraws 
 pp_check(thiomon_data_model_separate_improvement_1, type = 'pit_ecdf', ndraws = 4000)
 as_draws_df(thiomon_data_model_separate_improvement_1)  |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
 ```
+
 ```{r}
 # Calculate predicted probabilities on training data
 train_predicted_probs_separate_improvement_1 <- posterior_predict(thiomon_data_model_separate_improvement_1, newdata = train_data, draws = 10000)
@@ -1322,7 +1319,6 @@ Moreover, besides these trials that have been implemented, there can be room for
 
 After evaluating various models on the Thiomon dataset, we can conclude that the effects of the variables regarding remission are considerable. The Bayesian approach for this remission classification task is a approriate approach. However, the Bayesian approach is computationally complex, where increasing the number of parameters will lead to more time consumption during the fitting process, the model accuracy will be better proportional to the time training. Therefore, we can expect more accuracy improvement when we build a larger model, in an actual research project.
 
-
 Compared to these models, the hierarchical models, particularly the one with a global coefficient, provided a good balance between capturing global and group-level variations, leading to the best overall performance. The GLM models also showed promising results with less computational resources, which can also been a threshold for us to recompute the bayesian model in a researc project. Moreover, GLM also describe us the potential of using more parameters in Bayesian approach can lead to better result, which have also experimented in Potential section.
 
 # 7. Self-Reflection
@@ -1331,7 +1327,7 @@ Regarding to the project, we have learned how to collaborate and help each other
 
 # Appendix: Environment setup
 
-```
+```         
 rm(list = ls()) # Remove the environment variables
 setwd("Your working directory here") 
 SEED = 42 # Set the seed for reproducibility
@@ -1429,7 +1425,6 @@ if (!require(patchwork)) {
   install.packages("patchwork")
   library(patchwork)
 }
-
 ```
 
 # References
