@@ -296,7 +296,7 @@ test_data <- source_data[4501:nrow(source_data), ]
 There are 30 blood parameters which are identified by the database. Using the MLE algorithm 'lm', we can quickly check that all of these variables together explain 66% of the variability in the data set. Unfortunately, using all of them are computationally inefficient and will take long times to fit a bayesian model. Hence we need to prune the list down.
 
 ```         
-#lm_formula <- remission ~ 0 + days_of_life + wbc + hgb + hct + plt + rbc + mcv + mch + mchc + rdw + mpv + lymph_percent + neut_percent + mono_percent + eos_percent + baso_percent + sod + pot + chlor + co2 + un + creat + gluc + cal + prot + alb + ast + alt + alk + tbil}
+#lm_formula <- remission ~ 0 + days_of_life + wbc + hgb + hct + plt + rbc + mcv + mch + #mchc + rdw + mpv + lymph_percent + neut_percent + mono_percent + eos_percent + #baso_percent + sod + pot + chlor + co2 + un + creat + gluc + cal + prot + alb + ast + #alt + alk + tbil}
 #residual sd = 0.44, R-Squared = 0.66
 
 #residual sd = 0.47, R-Squared = 0.60
@@ -304,40 +304,40 @@ There are 30 blood parameters which are identified by the database. Using the ML
 
 #From paper's reco
 #residual sd = 0.46, R-Squared = 0.60
-lm_formula <- remission ~ 0 + hgb + lymph_percent + hct + neut_percent + plt + alb + 
-ast
+#lm_formula <- remission ~ 0 + hgb + lymph_percent + hct + neut_percent + plt + alb + 
+#ast
 
-lm1 <- lm(formula = lm_formula, data = train_data)
-display(lm1)
-install.packages("rstanarm")
-library(rstanarm)
+#lm1 <- lm(formula = lm_formula, data = train_data)
+#display(lm1)
+#install.packages("rstanarm")
+#library(rstanarm)
 
-fitg <- stan_glm(formula = lm_formula, data = train_data, refresh=0)
-summary(fitg)
+#fitg <- stan_glm(formula = lm_formula, data = train_data, refresh=0)
+#summary(fitg)
 
-fitg0 <- update(fitg, formula = remission ~ 1, QR=FALSE)
+#fitg0 <- update(fitg, formula = remission ~ 1, QR=FALSE)
 
-(loog0 <- loo(fitg0))
+#(loog0 <- loo(fitg0))
 
-(loog <- loo(fitg, k_threshold=0.7))
+#(loog <- loo(fitg, k_threshold=0.7))
 
-loo_compare(loog0, loog)
+#loo_compare(loog0, loog)
 
-fitg_cv <- cv_varsel(fitg, method='forward', cv_method='LOO', validate_search=FALSE)
+#fitg_cv <- cv_varsel(fitg, method='forward', cv_method='LOO', validate_search=FALSE)
 
-plot(fitg_cv, stats = c('elpd', 'rmse'))
+#plot(fitg_cv, stats = c('elpd', 'rmse'))
 
-(nsel <- suggest_size(fitg_cv, alpha=0.1))
+#(nsel <- suggest_size(fitg_cv, alpha=0.1))
 
-(vsel <- solution_terms(fitg_cv)[1:nsel])
+#(vsel <- solution_terms(fitg_cv)[1:nsel])
 ```
 
 The model with covariates definitely has a better EPLD compared to the base model and hence having covariates in our bayesian model definitely make sense. Going through the exercise, the 'hgb' and 'lymph_percent' seem the dominant variables and they have 58% explanatory power [Ref: <https://users.aalto.fi/~ave/modelselection/mesquite.html>].
 
-```{lm_formula <- remission ~ 0 + hgb + lymph_percent}
-
-lm1 <- lm(formula = lm_formula, data = train_data)
-display(lm1)
+```{r}
+#lm_formula <- remission ~ 0 + hgb + lymph_percent
+#lm1 <- lm(formula = lm_formula, data = train_data)
+#display(lm1)
 ```
 
 We continue with this choice further in our model fitting and also remember that 'lymph_percent' adds only 1% more explanatory power overall, so we may also decide to drop it.
@@ -425,10 +425,10 @@ thiomon_data_model_pooled |>
   powerscale_sensitivity() |> tt()
 ```
 
-Posterior predictive checks seem fine as well. Density overlay seems to fit well.
+Posterior predictive checks seem fine as well. Bars in the plot seems to fit well.
 
 ```{r}
-pp_check(thiomon_data_model_pooled, type = 'dens_overlay', ndraws = 200)
+pp_check(thiomon_data_model_pooled, type = 'bars', ndraws = 200)
 ```
 
 ### 3.1.5 Posterior predictive checking
@@ -552,12 +552,12 @@ In case there are complaints about Pareto k-estimates, we use the following comm
 thiomon_data_model_separate <- add_criterion(thiomon_data_model_separate, criterion='loo', reloo=TRUE)
 ```
 
-The Pareto k-estimates indicate there are no observations which have k \> 0.7. Posterior predictive checks seem fine as well. Density overlay seems to fit well.
+The Pareto k-estimates indicate there are no observations which have k \> 0.7. Posterior predictive checks seem fine as well. Bars plots seems to fit well.
 
 ### 3.2.5 Posterior predictive checking
 
 ```{r}
-pp_check(thiomon_data_model_separate, type = 'dens_overlay', ndraws = 200)
+pp_check(thiomon_data_model_separate, type = 'bars', ndraws = 200)
 ```
 
 LOO-PIT check seems fine as well.
@@ -729,7 +729,6 @@ The best performing model is the hierarchical, closely followed by separate with
 ### 3.3.2 Model posterior distributions
 
 ```{r}
-
 ph1 <- thiomon_data_model_hier_1 |>
   spread_rvars(b_lymph_percent, r_hgbrat[hgbrat,]) |>
   mutate(mean_value = b_lymph_percent + r_hgbrat) |>
@@ -1110,7 +1109,7 @@ thiomon_data_model_separate_improvement
 
 loo(thiomon_data_model_separate_improvement)
 thiomon_data_model_separate_improvement <- add_criterion(thiomon_data_model_separate_improvement, criterion='loo', reloo=TRUE)
-pp_check(thiomon_data_model_separate_improvement, type = 'dens_overlay', ndraws = 200)
+pp_check(thiomon_data_model_separate_improvement, type = 'bars', ndraws = 200)
 pp_check(thiomon_data_model_separate_improvement, type = 'loo_pit_qq', ndraws = 4000)
 pp_check(thiomon_data_model_separate_improvement, type = 'pit_ecdf', ndraws = 4000)
 as_draws_df(thiomon_data_model_separate_improvement)  |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
@@ -1238,7 +1237,7 @@ thiomon_data_model_separate_improvement_1
 
 loo(thiomon_data_model_separate_improvement_1)
 thiomon_data_model_separate_improvement_1 <- add_criterion(thiomon_data_model_separate_improvement_1, criterion='loo', reloo=TRUE)
-pp_check(thiomon_data_model_separate_improvement_1, type = 'dens_overlay', ndraws = 200)
+pp_check(thiomon_data_model_separate_improvement_1, type = 'bars', ndraws = 200)
 pp_check(thiomon_data_model_separate_improvement_1, type = 'loo_pit_qq', ndraws = 4000)
 pp_check(thiomon_data_model_separate_improvement_1, type = 'pit_ecdf', ndraws = 4000)
 as_draws_df(thiomon_data_model_separate_improvement_1)  |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
@@ -1314,6 +1313,50 @@ As you can observe, more training samples here do not print any differences, whi
 ## 5.2. Potential Improving
 
 Moreover, besides these trials that have been implemented, there can be room for improvement. An example is normalizing the parameters into medical terms for building model with efficient parameters only. Furthermore, we have not tried to used with spline approach in the model, or with multi-parameters in hierarchical models. They are worth for considering when we approach the problems and can be the necessary steps for improvement.
+
+One improvement which we consider is to use R2D2 method for the priors and using the full set of covariates for the modelling.
+
+```{r}
+formula_r2d2 <- bf(remission ~ 0 + wbc + hgb + hct + plt + rbc + mcv + mch + mchc + rdw + mpv + neut_percent + lymph_percent + mono_percent + eos_percent + baso_percent + sod + pot + chlor + co2 + un + creat + gluc + cal + prot + alb + ast + alt + alk + tbil, family = "bernoulli")
+
+fit_r2d2 <- brm(formula_r2d2, data = train_data,
+            normalize = FALSE,
+            prior=c(prior(R2D2(mean_R2 = 0.5, prec_R2 = 1, cons_D2 = 1,
+                               autoscale = FALSE),class=b)),
+            threads = threading(2), cores = 8, backend = "cmdstanr")
+```
+
+```{r}
+p_fit_r2d2 <- fit_r2d2 |> as_draws_df() |> as_draws_rvars() |> spread_rvars(b_wbc, b_hgb, b_hct, b_plt, b_rbc, b_mcv, b_mch, b_mchc, b_rdw, b_mpv, b_neut_percent, b_lymph_percent, b_mono_percent, b_eos_percent, b_baso_percent, b_sod, b_pot, b_chlor, b_co2, b_un, b_creat, b_gluc, b_cal, b_prot, b_alb, b_ast, b_alt, b_alk, b_tbil) |> mutate(mean_value = b_wbc + b_hgb + b_hct + b_plt + b_rbc + b_mcv + b_mch + b_mchc + b_rdw + b_mpv + b_neut_percent + b_lymph_percent + b_mono_percent + b_eos_percent + b_baso_percent + b_sod + b_pot + b_chlor + b_co2 + b_un + b_creat + b_gluc + b_cal + b_prot + b_alb + b_ast + b_alt + b_alk + b_tbil) |>
+  ggplot(aes(xdist=inv_logit_scaled(mean_value), y=0)) +
+  stat_halfeye() +
+  scale_y_continuous(breaks=NULL) +
+  labs(x='Remission factor', y='Across all covariates', title='Model with R2D2')
+(p_fit_r2d2) * xlim(c(0.0,1.0))
+```
+
+```{r}
+train_predicted_probs_r2d2 <- posterior_predict(fit_r2d2, newdata = train_data, draws = 10000, allow_new_levels = TRUE)
+train_mean_probs_r2d2 <- colMeans(train_predicted_probs_r2d2)
+
+# Find optimal threshold using ROC curve on training data
+train_roc_curve_r2d2 <- roc(train_data$remission, train_mean_probs_r2d2)
+optimal_threshold_r2d2 <- coords(train_roc_curve_r2d2, "best", ret = "threshold")
+
+# Predict on test data
+predicted_probs_r2d2 <- posterior_predict(fit_r2d2, newdata = test_data, draws = 1000, allow_new_levels = TRUE)
+mean_probs_r2d2 <- colMeans(predicted_probs_r2d2)
+
+# ROC Curve
+roc_curve_r2d2 <- roc(test_data$remission, mean_probs_r2d2)
+# plot(roc_curve_pooled, main = "ROC Curve for Separate Model")
+
+# Confusion Matrix
+predicted_classes_r2d2 <- ifelse(mean_probs_r2d2 >= optimal_threshold_r2d2$threshold, 1, 0)
+conf_matrix_r2d2 <- confusionMatrix(as.factor(predicted_classes_r2d2), as.factor(test_data$remission))
+
+print(conf_matrix_r2d2)
+```
 
 # 6. Conclusion
 
