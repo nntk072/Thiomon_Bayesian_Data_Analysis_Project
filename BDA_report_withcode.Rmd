@@ -2,13 +2,13 @@
 title: "Thiomon Data Analysis Report"
 author: "Long Nguyen and Amaanat Ali"
 output:
-  pdf_document:
-    toc: yes
-    toc_depth: 5
   html_document:
     toc: yes
     toc_depth: '5'
     df_print: paged
+  pdf_document:
+    toc: yes
+    toc_depth: 5
 bibliography: references.bib
 csl: vancouver.csl
 ---
@@ -160,25 +160,21 @@ options(tinytable_format_num_fmt = "significant_cell", tinytable_format_digits =
 
 \newpage
 
-(This is an example of using reference) This study explores the use of machine learning algorithms for predicting clinical outcomes with thiopurines [@10.1093/ecco-jcc/jjx014]. you can change the sections/subsections/name according to your idea
-
 # 1. Introduction
 
-Thiopurines are widely used immunomodulators for the treatment of ulcerative colitis [UC] and Crohn's disease [CD] in inflammatory bowel disease [IBD] patients. Thiopurines can induce immune suppression, clinical and biological remission, and are steroid-sparing agents.
+Thiopurines are widely used immunomodulators for the treatment of ulcerative colitis [UC] and Crohn's disease [CD] in inflammatory bowel disease [IBD] patients. Thiopurines can induce immune suppression, clinical and biological remission, and are steroid-sparing agents [@axelrad2016thiopurines].
 
-# 1.1. Motivation
+## 1.1. Motivation
 
 The study uses a data set based on de-identified Laboratory Data on IBD Patients using Thiourines for at least 4 weeks and their eventual Remission/Active Status after at least 12 Weeks of therapy.
 
-# 1.2. Problem Statement
+## 1.2. Problem Statement
 
-We plan to apply Bayesian data analysis technique to predict the Objective Remission (OR) in optimizing thiopurine therapy for inflammatory bowel disease by applying pooled, separate and hierarchical models. Furthermore, we make a comparison between the 3 models and draw some observations.
-
-# 1.3. Main Modeling Summary
+We plan to apply the Bayesian data analysis technique to predict the Objective Remission (OR) in optimizing thiopurine therapy for inflammatory bowel disease by applying pooled, separate, and hierarchical models. Furthermore, we make a comparison between the 3 models and draw some observations.
 
 # 2. Data: Thiomon Dataset
 
-A dataset containing laboratory data and outcomes of IBD patients on Thiopurine therapy at the University of Michigan. Data on laboratory values for a complete blood count and chemistry panel at least 4 weeks after start of thiopurine therapy in IBD patients. The University of Michigan Hospital is in Ann Arbor, USA. These data have been anonymized, and time-shifted. Age is reported in days of life.
+A dataset containing laboratory data and outcomes of IBD patients on Thiopurine therapy at the University of Michigan. Data on laboratory values for a complete blood count and chemistry panel at least 4 weeks after the start of thiopurine therapy in IBD patients [@github_htmlpreview]. The University of Michigan Hospital is in Ann Arbor, USA. These data have been anonymized, and time-shifted. Age is reported in days of life.
 
 ## 2.1. Data description
 
@@ -246,7 +242,7 @@ Alanine Transaminase (ALT) (alt)
 
 Alkaline Phosphatase (ALK) (alk)
 
-Total Bilirubin (Tbil) (tbil
+Total Bilirubin (Tbil) (tbil)
 
 **Inflammation and Other Markers**
 
@@ -256,9 +252,9 @@ Remission of Inflammation After Thiopurines for \> 12 Weeks (remission)
 
 ## 2.2. Data preprocessing
 
-Load the data comprising of approximately 5K rows of blood chemistry with remission and active status (each is 1 bit and complementary to each other).
+Load the data comprising approximately 5K rows of blood chemistry with remission and active status (each is 1 bit and complementary to each other).
 
-```{r}
+```{r include=FALSE}
 #Loading the data
 load("thiomon.rda")
 thiomon <- na.omit(thiomon)
@@ -279,6 +275,7 @@ source_data$hbghctrat <- as.character(source_data$hbghctrat)
 
 source_data$hgbratnum <- cut(source_data$hgb, breaks = seq(min(source_data$hgb), max(source_data$hgb), length.out = 6), labels = c(1,2,3,4,5))
 source_data$hgbrat <- as.character(source_data$hgbratnum)
+
 # Sample a subset of the 4500 rows to improve computation time
 MAX_DATA_SAMPLES <- 4500
 #Number of samples for the likelihood
@@ -291,9 +288,9 @@ train_data <- na.omit(train_data)
 test_data <- source_data[4501:nrow(source_data), ]
 ```
 
-### 2.2.1 Identifying variables for our modelling
+## 2.3 Identifying variables for our modeling
 
-There are 30 blood parameters which are identified by the database. Using the MLE algorithm 'lm', we can quickly check that all of these variables together explain 66% of the variability in the data set. Unfortunately, using all of them are computationally inefficient and will take long times to fit a bayesian model. Hence we need to prune the list down.
+There are 30 blood parameters which are identified by the database. Using the MLE algorithm 'lm', we can quickly check that all of these variables together explain 66% of the variability in the data set. Unfortunately, using all of them is computationally inefficient and will take a long time to fit a Bayesian model. Hence we need to prune the list down.
 
 ```         
 #lm_formula <- remission ~ 0 + days_of_life + wbc + hgb + hct + plt + rbc + mcv + mch + #mchc + rdw + mpv + lymph_percent + neut_percent + mono_percent + eos_percent + #baso_percent + sod + pot + chlor + co2 + un + creat + gluc + cal + prot + alb + ast + #alt + alk + tbil}
@@ -302,7 +299,7 @@ There are 30 blood parameters which are identified by the database. Using the ML
 #residual sd = 0.47, R-Squared = 0.60
 #lm_formula <- remission ~ 0 + hgb + hct + mchc
 
-#From paper's reco
+#From paper's recommendation
 #residual sd = 0.46, R-Squared = 0.60
 #lm_formula <- remission ~ 0 + hgb + lymph_percent + hct + neut_percent + plt + alb + 
 #ast
@@ -332,7 +329,7 @@ There are 30 blood parameters which are identified by the database. Using the ML
 #(vsel <- solution_terms(fitg_cv)[1:nsel])
 ```
 
-The model with covariates definitely has a better EPLD compared to the base model and hence having covariates in our bayesian model definitely make sense. Going through the exercise, the 'hgb' and 'lymph_percent' seem the dominant variables and they have 58% explanatory power [Ref: <https://users.aalto.fi/~ave/modelselection/mesquite.html>].
+The model with covariates definitely has a better EPLD compared to the base model and hence having covariates in our Bayesian model definitely makes sense. Going through the exercise, the 'hgb' and 'lymph_percent' seem the dominant variables and they have 58% explanatory power [@vehtari_collinear_demo].
 
 ```{r}
 #lm_formula <- remission ~ 0 + hgb + lymph_percent
@@ -342,7 +339,7 @@ The model with covariates definitely has a better EPLD compared to the base mode
 
 We continue with this choice further in our model fitting and also remember that 'lymph_percent' adds only 1% more explanatory power overall, so we may also decide to drop it.
 
-To allow for slope and intercept to be defined in the separate and hierarchical models, we need to distribute 'hgb' into N classes across the range of values. Furthermore, to ensure that the number of data samples are same in each class (otherwise the likelihood statistic will force a larger variance), we sample each class and pick M samples. Hence the total number of samples for our study become M x N.
+To allow for slope and intercept to be defined in the separate and hierarchical models, we need to distribute 'hgb' into N classes across the range of values. Furthermore, to ensure that the number of data samples are same in each class (otherwise the likelihood statistic will force a larger variance), we sample each class and pick M samples. Hence the total number of samples for our study becomes M x N.
 
 # 3. Models
 
@@ -369,16 +366,16 @@ thiomon_data_model_pooled <- brm(
     save_pars = save_pars(all = TRUE),
     iter = 2000,
     warmup = 1000,
-    chains = 4,                           # Number of chains
+    chains = 4,
     control = list(
-      adapt_delta = 0.8,                 # Increase acceptance rate target if needed
-      max_treedepth = 20                 # Increase the tree depth if needed
+      adapt_delta = 0.8,
+      max_treedepth = 20                 
     ),
     threads = threading(2), cores = 8, backend = "cmdstanr"
 )
 ```
 
-There are no divergent transactions reported. Let's check for some model related diagnostics.
+There are no divergent transactions reported. Let's check for some model-related diagnostics.
 
 ### 3.1.1 R-hat and Effective Sample Size (ESS)
 
@@ -425,13 +422,13 @@ thiomon_data_model_pooled |>
   powerscale_sensitivity() |> tt()
 ```
 
-Posterior predictive checks seem fine as well. Bars in the plot seems to fit well.
+Posterior predictive checks seem fine as well. Bars in the plot seem to fit well.
 
 ```{r}
 pp_check(thiomon_data_model_pooled, type = 'bars', ndraws = 200)
 ```
 
-### 3.1.5 Posterior predictive checking
+### 3.1.5 Posterior Predictive Checking
 
 LOO-PIT check seems fine as well.
 
@@ -447,7 +444,7 @@ pp_check(thiomon_data_model_pooled, type = 'pit_ecdf', ndraws = 4000)
 
 ### 3.1.6 Model parameters
 
-Value of the population intercept 'alpha' is estimated at 0.14. We exclude the likelihood parameters.
+The value of the population intercept 'alpha' is estimated at 0.14. We exclude the likelihood parameters.
 
 ```{r}
 as_draws_df(thiomon_data_model_pooled)  |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
@@ -455,7 +452,7 @@ as_draws_df(thiomon_data_model_pooled)  |> subset_draws(variable=c('lprior','lp_
 
 ## 3.2. Separate model
 
-Try with the separate model. Let's try with the sample one below using the recommended parameters from above section:
+Try with a separate model. Let's try with the sample one below using the recommended parameters from the above section:
 
 ```{r warning=FALSE, message=FALSE}
 ref_thiomon_formulae_separate <- bf(remission ~ 0 + hgbrat + lymph_percent, family = "bernoulli")
@@ -481,10 +478,10 @@ thiomon_data_model_separate <- brm(
     data = train_data,
     iter = 2000,
     warmup = 1000,
-    chains = 4,                           # Number of chains
+    chains = 4,  
     control = list(
-      adapt_delta = 0.9,                 # Increase acceptance rate target if needed
-      max_treedepth = 20                 # Increase the tree depth if needed
+      adapt_delta = 0.9,
+      max_treedepth = 20
     ),
     threads = threading(2), cores = 8, backend = "cmdstanr"
 )
@@ -510,11 +507,11 @@ train_data |>
 
 Both the parameters demonstrate a normal distribution around their respective means. We can approximate with normal distribution for all the parameters.
 
-We don't use flat priors as they are uninformative and we have lots of data to give us good reference values. Also with flat priors, posterior prior checking tools due to input containing infinite or NA values as there is a constant tail. We notice also that the entire population parameters are assigned the same priors. We want to change it. Also notice that we don't have population level Intercept.
+We don't use flat priors as they are uninformative and we have lots of data to give us good reference values. Also with flat priors, posterior prior checking tools due to input containing infinite or NA values as there is a constant tail. We notice also that the entire population parameters are assigned the same priors. We want to change it. Also, notice that we don't have a population level Intercept.
 
 ### 3.2.2 Checking prior sensitivity
 
-With our chosen priors (we used the default priors first and then used the posterior of the slopes to judge what we need), we expect to see no prior prior sensitivity and we are right. Power-scaling with cumulative Jensen-Shannon distance diagnostic indicates no prior-data conflict.
+With our chosen priors (we used the default priors first and then used the posterior of the slopes to judge what we need), we expect to see no prior sensitivity and we are right. Power-scaling with cumulative Jensen-Shannon distance diagnostic indicates no prior data conflict.
 
 ```{r}
 thiomon_data_model_separate |>
@@ -540,21 +537,21 @@ R-hat and effective sample sizes look good. At convergence also R-hat value is 1
 loo(thiomon_data_model_separate)
 ```
 
-### 3.2.4 Issue with Pareto K-hat and solution
+### 3.2.4 Issue with Pareto K-hat and Solution
 
 ```{r}
 loo(thiomon_data_model_separate)
 ```
 
-In case there are complaints about Pareto k-estimates, we use the following command and refit the model by removing the observations causing the conflict. Here the model was refit 1 times as there was 1 value with value between 0.7 and 1.
+In case there are complaints about Pareto k-estimates, we use the following command and refit the model by removing the observations causing the conflict. Here the model was refit 1 times as there was 1 value with a value between 0.7 and 1.
 
 ```{r}
 thiomon_data_model_separate <- add_criterion(thiomon_data_model_separate, criterion='loo', reloo=TRUE)
 ```
 
-The Pareto k-estimates indicate there are no observations which have k \> 0.7. Posterior predictive checks seem fine as well. Bars plots seems to fit well.
+The Pareto k-estimates indicate there are no observations that have k \> 0.7. Posterior predictive checks seem fine as well. Bars plots seem to fit well.
 
-### 3.2.5 Posterior predictive checking
+### 3.2.5 Posterior Predictive Checking
 
 ```{r}
 pp_check(thiomon_data_model_separate, type = 'bars', ndraws = 200)
@@ -574,7 +571,7 @@ pp_check(thiomon_data_model_separate, type = 'pit_ecdf', ndraws = 4000)
 
 ### 3.2.6 Model parameters
 
-The slopes for the covariates can be listed using the following
+The slopes for the covariates can be listed using the following.
 
 ```{r}
 as_draws_df(thiomon_data_model_separate)  |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
@@ -583,6 +580,8 @@ as_draws_df(thiomon_data_model_separate)  |> subset_draws(variable=c('lprior','l
 ## 3.3. Hierarchical model
 
 Let's try a hierarchical model. In 'hier_1' there is no global intercept but in 'hier_2' there is.
+
+### 3.3.1. Hierarchical model without global concept
 
 ```{r warning=FALSE, message=FALSE}
 ref_thiomon_formulae_hier_1 <- bf(remission ~ 0 + lymph_percent + (1 | hgbrat), family = "bernoulli")
@@ -609,14 +608,16 @@ thiomon_data_model_hier_1 <- brm(
     data = train_data,
     iter = 2000,
     warmup = 1000,
-    chains = 4,                           # Number of chains
+    chains = 4,            
     control = list(
-      adapt_delta = 0.95,                 # Increase acceptance rate target if needed
-      max_treedepth = 20                 # Increase the tree depth if needed
+      adapt_delta = 0.95,    
+      max_treedepth = 20 
     ),
     threads = threading(2), cores = 8, backend = "cmdstanr"
 )
 ```
+
+### 3.3.2. Hierarchical model with global concept
 
 Note we have also set an informative prior on the Intercept as flat priors cause problems in loo checking due to Pareto K-hat values.
 
@@ -659,23 +660,32 @@ thiomon_data_model_hier_2 <- brm(
 )
 ```
 
-### 3.3.1 R-hat and Effective Sample Size (ESS)
+### 3.3.3 R-hat and Effective Sample Size (ESS)
 
-R-hat and ESS values look good. Convergence at the end of the run indicates R-hat is 1.0 which means samples are reliable and can be used for inference. Also posterior prior sensitivity is well adjusted.
+R-hat and ESS values look good. Convergence at the end of the run indicates R-hat is 1.0 which means samples are reliable and can be used for inference. Also, posterior prior sensitivity is well adjusted.
 
 ```{r}
 thiomon_data_model_hier_1 |>
   powerscale_sensitivity()
 ```
 
-The prior sensitivity caused some issues for us. There were a few divergent transactions reported (less than 10) but R-hat values were \<= 1.01 for all the parameters. Also the model reported R-hat values converged at the end of the simulation. When there are those many divergent transactions, we could have fixed them by increasing the 'adapt_delta' but we choose to check the priors and see if they could be tuned. When tuned too tight the diagnostic would reveal a prior-data conflict and when too wide it would complain about likelihood and prior conflict. We had to iterate to get the best balance of reducing the divergent transactions and the prior conflict. The values -1.5 for Intercept and 1.5 for sd are testament to this iterative checking.
+The prior sensitivity caused some issues for us. There were a few divergent transactions reported (less than 10) but R-hat values were \<= 1.01 for all the parameters. Also, the model reported that R-hat values converged at the end of the simulation. When there are those many divergent transactions, we could have fixed them by increasing the 'adapt_delta' but we chose to check the priors and see if they could be tuned. When tuned too tight the diagnostic would reveal a prior-data conflict and when too wide it would complain about likelihood and prior conflict. We had to iterate to get the best balance of reducing the divergent transactions and the prior conflict. The values -1.5 for Intercept and 1.5 for sd are a testament to this iterative checking.
 
-The following commands are generic for both the hierarchical model choices. We continue with hier_1 as both the models have almost same EPLD value (negligible difference as expected).
+The following commands are generic for both the hierarchical model choices. We continue with hier_2 as both the models have almost the same EPLD value (negligible difference as expected).
 
-### 3.3.2 Issue with Pareto K-hat and solution
+```{r}
+thiomon_data_model_hier_2 |>
+  powerscale_sensitivity()
+```
+
+### 3.3.4 Issue with Pareto K-hat and Solution
 
 ```{r}
 loo(thiomon_data_model_hier_1)
+```
+
+```{r}
+loo(thiomon_data_model_hier_2)
 ```
 
 Since there were no values with problematic K-hat the following is not required.
@@ -684,35 +694,25 @@ Since there were no values with problematic K-hat the following is not required.
 thiomon_data_model_hier_1 <- add_criterion(thiomon_data_model_hier_1, criterion='loo', reloo=TRUE)
 ```
 
-### 3.3.3 LOO-PIT check
+```{r}
+thiomon_data_model_hier_22 <- add_criterion(thiomon_data_model_hier_2, criterion='loo', reloo=TRUE)
+```
+
+### 3.3.5 LOO-PIT check
 
 ```{r}
 pp_check(thiomon_data_model_hier_1, type = 'loo_pit_qq', ndraws = 4000)
 ```
 
-Try to see if a better hierarchical model fits. The 'sd' prior required a bit of tweaking. Keeping it wider results in 1 divergent transaction which we try to avoid by making it narrow but not quite narrow that we get a prior-data conflict. With this balancing there are no problems we spot.
-
-There is no issue anymore of prior sensitivity.
-
 ```{r}
-# Predict probabilities on the test data
-predicted_probs <- posterior_predict(thiomon_data_model_hier_2, 
-                                     newdata = test_data, draws = 4000, allow_new_levels = TRUE)
-
-# Calculate the mean predicted probabilities for each test sample
-mean_probs <- colMeans(predicted_probs)
-
-# Predict classes based on a threshold of 0.5
-predicted_classes <- ifelse(mean_probs >= 0.5, 1, 0)
-
-# Generate confusion matrix
-conf_matrix <- confusionMatrix(as.factor(predicted_classes), as.factor(test_data$remission))
-
-#Convert this to data frame and use tt() for pretty print
-print(conf_matrix)
+pp_check(thiomon_data_model_hier_2, type = 'loo_pit_qq', ndraws = 4000)
 ```
 
-## 3.4 Pooled, Separate and Hierarchical model comparision
+Try to see if a better hierarchical model fits. The 'sd' prior required a bit of tweaking. Keeping it wider results in 1 divergent transaction which we try to avoid by making it narrow but not quite narrow that we get a prior-data conflict. With this balancing, there are no problems we spot.
+
+There is no issue any more of prior sensitivity.
+
+## 3.4 Pooled, Separate, and Hierarchical Model Comparison
 
 ### 3.4.1 LOO comparing all the 4 models
 
@@ -724,9 +724,9 @@ loo_compare(loo(thiomon_data_model_pooled), loo(thiomon_data_model_separate), lo
   tt()
 ```
 
-The best performing model is the hierarchical, closely followed by separate with hardly much difference in EPLD (less than 0.5) and finally the pooled (with a EPLD score 18 points below both of the hierarchical and separate models).
+The best-performing model is the hierarchical, closely followed by the separate with hardly much difference in EPLD (less than 0.5), and finally the pooled (with an EPLD score 18 points below both of the hierarchical and separate models).
 
-### 3.3.2 Model posterior distributions
+### 3.4.2 Model posterior distributions
 
 ```{r}
 ph1 <- thiomon_data_model_hier_1 |>
@@ -775,9 +775,9 @@ pp <- thiomon_data_model_pooled |>
 
 ```
 
-The reasons are mostly clear - the separate and hierarchical models perform almost the same but the pooled model does not factor in any covariates and hence only relies on the remission bits as information and hence it has poor predictive power. The close performance of the separate and hierarchical models is due to the fact that the patients segregated by the 'hgbrat' do share some information mutually in the hierarchical model but this is not much which means that the predicted remissions are not widely varying.
+The reasons are mostly clear - the separate and hierarchical models perform almost the same but the pooled model does not factor in any covariates and hence only relies on the remission bits as information and hence it has poor predictive power. The close performance of the separate and hierarchical models is because the patients segregated by the 'hgbrat' do share some information mutually in the hierarchical model but this is not much which means that the predicted remissions are not widely varying.
 
-### 3.3.3 Bayes and LOO R2 checks
+### 3.4.3 Bayes and LOO R2 checks
 
 ```{r warning=FALSE}
 #Pooled model
@@ -801,9 +801,9 @@ The pooled model has negligible values as they don't have any covariates factore
 
 The LOO-R2 and Bayes-R2 values both match for all the models indicating that there is no likely over-fitting or under-fitting of the data.
 
-## 3.4. Non-Bayesian model
+## 3.5. Non-Bayesian model
 
-Besides the implementation of Bayesian model, we would like to introduce the machine learning aspect to the model as well for comparison between Bayesian approach and simple machine learning approach, while finding and evaluating the correlation between model parameters for saving computational resources and suggesting the observation that we can try in Bayesian model as well. Support vector machine (SVM) model and General Linear model (GLM) will be described with the following parameters based on the abbreviation of dataset description /cite something here. In general, the model will use all of the parameters of the dataset, without any modification, for the purpose of comparison only
+Besides the implementation of the Bayesian model, we would like to introduce the machine learning aspect to the model as well for comparison between the Bayesian approach and the simple machine learning approach, while finding and evaluating the correlation between model parameters for saving computational resources and suggesting the observation that we can try in Bayesian model as well. General Linear model (GLM) will be described with the following parameters based on the abbreviation of dataset description /cite something here. In general, the model will use all of the parameters of the dataset, without any modification, for comparison only.
 
 ```{r}
 model_glm <- glm(remission ~ 0 + days_of_life + wbc + hgb + hct + plt + rbc + mcv + mch + mchc + rdw + mpv + neut_percent + lymph_percent + mono_percent + eos_percent + baso_percent + sod + pot + chlor + co2 + un + creat + gluc + cal + prot + alb + ast + alt + alk + tbil, data = thiomon)
@@ -811,11 +811,11 @@ model_glm <- glm(remission ~ 0 + days_of_life + wbc + hgb + hct + plt + rbc + mc
 
 # 4. Evaluation results
 
-After building the model, dut to the objective of the model is classifation, we can use classification evaluation metrics aspect for evaluation the model result. Two suggestion that we have implemented: using confusion matrix with evaluation metrics mathematical calculation, and using ROC curves with AUC values for different model comparison, which can be elaborated in session 4.1. and 4.2.
+After building the model, due to the objective of the model being classification, we can use the classification evaluation metrics aspect for the evaluation of the model result. Two suggestions that we have implemented: using a confusion matrix with evaluation metrics mathematical calculation, and using ROC curves with AUC values for different model comparisons, which can be elaborated on in session 4.1. and 4.2.
 
 ## 4.1. Confusion matrix and Evaluation metrics results
 
-Confusion matrix is a common method for binary classification task, where the prediction will be built in the augmented matrix, describing the actual status of the model prediction. Here are the detailed results for each model:
+Confusion matrix is a common method for binary classification tasks, where the prediction will be built in the augmented matrix, describing the actual status of the model prediction. Here are the detailed results for each model:
 
 ### 4.1.1. Pooled Model
 
@@ -843,7 +843,7 @@ print(conf_matrix_pooled)
 
 ```
 
-The accuracy of the pooled model is close to random guessing, as indicated by the balanced accuracy of 49.98%.
+The accuracy of the pooled model is close to random guessing, as indicated by the balanced accuracy of approximately 50%
 
 ### 4.1.2. Separate model
 
@@ -870,9 +870,9 @@ conf_matrix_separate <- confusionMatrix(as.factor(predicted_classes_separate), a
 print(conf_matrix_separate)
 ```
 
-The separate model performs better than the pooled model, with an accuracy of 60.32%. The balanced accuracy of 60.64% indicates a moderate performance. The model has a higher sensitivity, making it better at identifying true positives.
+The separate model performs better than the pooled model. The model has a higher sensitivity, making it better at identifying true positives.
 
-### 4.1.3. Hierarchical model
+### 4.1.3. Hierarchical model with global concept
 
 ```{r}
 # Calculate predicted probabilities on training data
@@ -897,9 +897,9 @@ conf_matrix_hierarchical_1 <- confusionMatrix(as.factor(predicted_classes_hierar
 print(conf_matrix_hierarchical_1)
 ```
 
-This hierarchical model has an accuracy of 59.07% and a balanced accuracy of 59.44%. The sensitivity is higher than the specificity, indicating that the model is better at identifying true positives.
+This hierarchical model has an accuracy of nearly 60% (which may be changed when knitting the docume). The sensitivity is higher than the specificity, indicating that the model is better at identifying true positives.
 
-### 4.1.4. Hierarchical model with pooled
+### 4.1.4. Hierarchical model without global concept
 
 ```{r}
 # Calculate predicted probabilities on training data
@@ -924,7 +924,7 @@ conf_matrix_hierarchical_2 <- confusionMatrix(as.factor(predicted_classes_hierar
 print(conf_matrix_hierarchical_2)
 ```
 
-Hierarchical model 2 performs slightly better than hierarchical model 1, with an accuracy of 59.78% and a balanced accuracy of 60.14%. The sensitivity is higher, indicating better identification of true positives.
+Hierarchical model 2 performs approximately with hierarchical model 1. The sensitivity is higher, indicating better identification of true positives.
 
 ### 4.1.5. GLM Model
 
@@ -950,12 +950,12 @@ print(conf_matrix_glm)
 
 # Plot the ROC curve
 roc_curve_glm <- roc(test_data$remission, pred_probs_glm_test)
-plot(roc_curve_glm, main = "ROC Curve for GLM Model")
+# plot(roc_curve_glm, main = "ROC Curve for GLM Model")
 # Plot the ROC curve
 # plot(roc_curve_glm, main = "ROC Curve for GLM Model")
 ```
 
-The GLM model outperforms all other models with an accuracy of 67.32% The model has a good balance between sensitivity and specificity, making it effective at identifying both true positives and true negatives.
+The GLM model outperforms all other models with an accuracy of over 65%. The model has a good balance between sensitivity and specificity, making it effective at identifying both true positives and true negatives.
 
 ## 4.2. ROC curves and AUC values
 
@@ -1023,21 +1023,19 @@ ggplot(test_roc_data, aes(x = fpr, y = tpr, color = model)) +
 
 ```
 
-According to the evaluation result, we could see that almost all the models are having the AUC difference between training and testing data maximum 7%, which can be an acceptable value. Moreover, the Bayesian approach cannot be better than the GLM approach. One of the proposal for this is because of having less occupied parameters in the model. We can base on that to improve our model as well.
+According to the evaluation result, we could see that almost all the models have an AUC difference between training and testing data maximum of 7%, which can be an acceptable value. Moreover, the Bayesian approach cannot be better than the GLM approach. One of the proposals for this is because of having less occupied parameters in the model. We can base on that to improve our model as well.
 
-### 4.3. Discussion.
+## 4.3. Discussion.
 
-According to the evaluation results, the GLM model outperforms the Bayesian models in terms of accuracy and AUC. Moreover, asexpected from the bayesian analysis, the difference between Separate and Hierarchical here is not clearly. The Bayesian models show moderate performance but do not surpass the GLM model.
+According to the evaluation results, the GLM model outperforms the Bayesian models in terms of accuracy and AUC. Moreover, as expected from the Bayesian analysis, the difference between Separate and Hierarchical here is not clear. The Bayesian models show moderate performance but do not surpass the GLM model.
 
 # 5. Discussion of Issues and Potential Improvements
 
-The main issue observed is the moderate performance of the Bayesian models compared to the GLM model. To improve the accuracy of the Bayesian models, we can consider increasing the number of variables and normalizing the parameters into different categories and medical terms. This can help improve the model's accuracy and predictive power.
+The main issue observed is the moderate performance of the Bayesian models compared to the GLM model. To improve the accuracy of the Bayesian models, we can consider increasing the number of variables, introducing different methods for approaching the prior, or normalizing the parameters into different categories and medical terms. This can help improve the model's accuracy and predictive power.
 
 ## 5.1. Improving the number of training sample
 
-An example of applying 4500 variables into the separate model with more
-
-An example for that is using different parameters, when we decide the model into different parameters, which has been normalized as follow
+An example of applying 4500 variables into a separate model.
 
 ```{r include = FALSE}
 #Process the data set with some additional processing
@@ -1099,7 +1097,7 @@ thiomon_data_model_separate_improvement <- brm(
 )
 ```
 
-```{r}
+```{r include=FALSE}
 thiomon_data_model_separate_improvement |>
   powerscale_plot_dens(help_text=FALSE)
 thiomon_data_model_separate_improvement |>
@@ -1115,7 +1113,7 @@ pp_check(thiomon_data_model_separate_improvement, type = 'pit_ecdf', ndraws = 40
 as_draws_df(thiomon_data_model_separate_improvement)  |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
 ```
 
-All of the bayesian check methods have been produced and did not provide any problems compared to the previous model. Therefore, we could come to evaluation session
+All of the Bayesian check methods have been produced internally and did not provide any problems compared to the previous model. Therefore, we could come to an evaluation session
 
 ```{r}
 # Calculate predicted probabilities on training data
@@ -1140,13 +1138,13 @@ conf_matrix_separate_improvement <- confusionMatrix(as.factor(predicted_classes_
 print(conf_matrix_separate_improvement)
 ```
 
-Base on observation, the actual accuracy of the model here is larger, but not significant. However, the generalization of the model is better due to the decrease in the sensitivity and increase and specificity. This is a good sign for the model as well.
+Based on observation, the actual accuracy of the model here is larger, but not significant. However, the generalization of the model is better due to the decrease in the sensitivity and increase and specificity. This is a good sign for the model as well.
 
-Moreover, a comparison between using less and more data in ROC/AUC values can be presented below
+Moreover, a comparison between using less and more data in ROC/AUC values can be presented below.
 
 ## 5.2. Increasing the number of parameters in the original model.
 
-The model here can be computed with more parameters, with the purpose of producing a better result. However, using more paramters can also lead to increase the model complexity, which may not be approriate in the task's project. Therefore, an example of changing the separate model formula with adding 4 more parameters hct, wbc, mpv, mchc into the model and we can observe the result.
+The model here can be computed with more parameters, with the purpose of producing a better result. However, using more parameters can also lead to an increase in the model complexity, which may not be appropriate for the task's project. Therefore, an example of changing the separate model formula with adding 4 more parameters hct, wbc, mpv, mchc into the model and we can observe the result.
 
 ```{r include = FALSE}
 #Process the data set with some additional processing
@@ -1227,7 +1225,7 @@ thiomon_data_model_separate_improvement_1 <- brm(
 )
 ```
 
-```{r}
+```{r include=FALSE}
 thiomon_data_model_separate_improvement_1 |>
   powerscale_plot_dens(help_text=FALSE)
 thiomon_data_model_separate_improvement_1 |>
@@ -1266,57 +1264,13 @@ conf_matrix_separate_improvement_1 <- confusionMatrix(as.factor(predicted_classe
 print(conf_matrix_separate_improvement_1)
 ```
 
-## 5.3. ROC curves/AUC values comparison
+## 5.3. R2D2 method for the priors and using the full set of covariates for the modeling
 
-```{r}
-# Calculate and interpolate ROC curves with jitter
-roc_separate_train <- interpolate_smooth_roc_jitter(train_roc_curve_separate)
-roc_separate_test <- interpolate_smooth_roc_jitter(roc_curve_separate)
-roc_separate_improvement_train <- interpolate_smooth_roc_jitter(train_roc_curve_separate_improvement)
-roc_separate_improvement_test <- interpolate_smooth_roc_jitter(roc_curve_separate_improvement)
-roc_separate_improvement_1_train <- interpolate_smooth_roc_jitter(train_roc_curve_separate_improvement_1)
-roc_separate_improvement_1_test <- interpolate_smooth_roc_jitter(roc_curve_separate_improvement_1)
+Moreover, besides these trials that have been implemented, there can be room for improvement. An example is normalizing the parameters into medical terms for building a model with efficient parameters only. Furthermore, we have not tried to use with spline approach in the model, or with multi-parameters in hierarchical models. They are worth considering when we approach the problems and can be the necessary steps for improvement.
 
-# Calculate AUC values
-auc_separate_train <- auc(train_roc_curve_separate)
-auc_separate_test <- auc(roc_curve_separate)
-auc_separate_improvement_train <- auc(train_roc_curve_separate_improvement)
-auc_separate_improvement_test <- auc(roc_curve_separate_improvement)
-auc_separate_improvement_1_train <- auc(train_roc_curve_separate_improvement_1)
-auc_separate_improvement_1_test <- auc(roc_curve_separate_improvement_1)
+One improvement that we consider is to use the R2D2 method for the priors and use the full set of covariates for the modeling.
 
-# Combine ROC curves into one data frame
-
-train_roc_data <- rbind(
-  data.frame(roc_separate_train, model = paste("Separate Train (AUC =", round(auc_separate_train, 4), ")")),
-  data.frame(roc_separate_improvement_train, model = paste("Separate model + more training samples (AUC =", round(auc_separate_improvement_train, 4), ")")),
-  data.frame(roc_separate_improvement_1_train, model = paste("Separate model + more variables (AUC =", round(auc_separate_improvement_1_train, 4), ")"))
-)
-test_roc_data <- rbind(
-  data.frame(roc_separate_test, model = paste("Separate Test (AUC =", round(auc_separate_test, 4), ")")),
-    data.frame(roc_separate_improvement_test, model = paste("Separate model + more training samples (AUC =", round(auc_separate_improvement_test, 4), ")")),
-    data.frame(roc_separate_improvement_1_test, model = paste("Separate model + more variables (AUC =", round(auc_separate_improvement_1_test, 4), ")"))
-)
-# Plot all ROC curves in one plot
-ggplot(train_roc_data, aes(x = fpr, y = tpr, color = model)) +
-  geom_line() +
-  labs(title = "Train ROC Curves for Different Models", x = "False Positive Rate", y = "True Positive Rate") +
-  theme_minimal()
-ggplot(test_roc_data, aes(x = fpr, y = tpr, color = model)) +
-  geom_line() +
-  labs(title = "Test ROC Curves for Different Models", x = "False Positive Rate", y = "True Positive Rate") +
-  theme_minimal()
-```
-
-As you can observe, more training samples here do not print any differences, while more variables can lead to better model accuracy, having better ROC curves and AUC values. This can be a potential option for us to analyze and improve in the future.
-
-## 5.2. Potential Improving
-
-Moreover, besides these trials that have been implemented, there can be room for improvement. An example is normalizing the parameters into medical terms for building model with efficient parameters only. Furthermore, we have not tried to used with spline approach in the model, or with multi-parameters in hierarchical models. They are worth for considering when we approach the problems and can be the necessary steps for improvement.
-
-One improvement which we consider is to use R2D2 method for the priors and using the full set of covariates for the modelling.
-
-```{r}
+```{r warning=FALSE, message=FALSE}
 formula_r2d2 <- bf(remission ~ 0 + wbc + hgb + hct + plt + rbc + mcv + mch + mchc + rdw + mpv + neut_percent + lymph_percent + mono_percent + eos_percent + baso_percent + sod + pot + chlor + co2 + un + creat + gluc + cal + prot + alb + ast + alt + alk + tbil, family = "bernoulli")
 
 fit_r2d2 <- brm(formula_r2d2, data = train_data,
@@ -1358,116 +1312,67 @@ conf_matrix_r2d2 <- confusionMatrix(as.factor(predicted_classes_r2d2), as.factor
 print(conf_matrix_r2d2)
 ```
 
+## 5.4. ROC curves/AUC values comparison
+
+```{r}
+# Calculate and interpolate ROC curves with jitter
+roc_separate_train <- interpolate_smooth_roc_jitter(train_roc_curve_separate)
+roc_separate_test <- interpolate_smooth_roc_jitter(roc_curve_separate)
+roc_separate_improvement_train <- interpolate_smooth_roc_jitter(train_roc_curve_separate_improvement)
+roc_separate_improvement_test <- interpolate_smooth_roc_jitter(roc_curve_separate_improvement)
+roc_separate_improvement_1_train <- interpolate_smooth_roc_jitter(train_roc_curve_separate_improvement_1)
+roc_separate_improvement_1_test <- interpolate_smooth_roc_jitter(roc_curve_separate_improvement_1)
+roc_r2d2_improvement_train <- interpolate_smooth_roc_jitter(train_roc_curve_r2d2)
+roc_r2d2_improvement_test <- interpolate_smooth_roc_jitter(roc_curve_r2d2)
+
+
+
+# Calculate AUC values
+auc_separate_train <- auc(train_roc_curve_separate)
+auc_separate_test <- auc(roc_curve_separate)
+auc_separate_improvement_train <- auc(train_roc_curve_separate_improvement)
+auc_separate_improvement_test <- auc(roc_curve_separate_improvement)
+auc_separate_improvement_1_train <- auc(train_roc_curve_separate_improvement_1)
+auc_separate_improvement_1_test <- auc(roc_curve_separate_improvement_1)
+auc_r2d2_improvement_1_train <- auc(train_roc_curve_r2d2)
+auc_r2d2_improvement_1_test <- auc(roc_curve_r2d2)
+
+# Combine ROC curves into one data frame
+
+train_roc_data <- rbind(
+  data.frame(roc_separate_train, model = paste("Separate Train (AUC =", round(auc_separate_train, 4), ")")),
+  data.frame(roc_separate_improvement_train, model = paste("Separate model + more training samples (AUC =", round(auc_separate_improvement_train, 4), ")")),
+  data.frame(roc_separate_improvement_1_train, model = paste("Separate model + more variables (AUC =", round(auc_separate_improvement_1_train, 4), ")")),
+  data.frame(roc_r2d2_improvement_train, model = paste("R2D2 prior (AUC =", round(auc_separate_improvement_1_train, 4), ")"))
+)
+test_roc_data <- rbind(
+  data.frame(roc_separate_test, model = paste("Separate Test (AUC =", round(auc_separate_test, 4), ")")),
+    data.frame(roc_separate_improvement_test, model = paste("Separate model + more training samples (AUC =", round(auc_separate_improvement_test, 4), ")")),
+    data.frame(roc_separate_improvement_1_test, model = paste("Separate model + more variables (AUC =", round(auc_separate_improvement_1_test, 4), ")")),
+  data.frame(roc_r2d2_improvement_test, model = paste("R2D2 prior + more variables (AUC =", round(auc_separate_improvement_1_train, 4), ")"))
+)
+
+# Plot all ROC curves in one plot
+ggplot(train_roc_data, aes(x = fpr, y = tpr, color = model)) +
+  geom_line() +
+  labs(title = "Train ROC Curves for Different Models", x = "False Positive Rate", y = "True Positive Rate") +
+  theme_minimal()
+ggplot(test_roc_data, aes(x = fpr, y = tpr, color = model)) +
+  geom_line() +
+  labs(title = "Test ROC Curves for Different Models", x = "False Positive Rate", y = "True Positive Rate") +
+  theme_minimal()
+```
+
+As you can observe, more training samples here do not print any differences, while more variables can lead to better model accuracy, having better ROC curves and AUC values. This can be a potential option for us to analyze and improve in the future.
+
 # 6. Conclusion
 
-After evaluating various models on the Thiomon dataset, we can conclude that the effects of the variables regarding remission are considerable. The Bayesian approach for this remission classification task is a approriate approach. However, the Bayesian approach is computationally complex, where increasing the number of parameters will lead to more time consumption during the fitting process, the model accuracy will be better proportional to the time training. Therefore, we can expect more accuracy improvement when we build a larger model, in an actual research project.
+After evaluating various models on the Thiomon dataset, we can conclude that the effects of the variables regarding remission are considerable. The Bayesian approach for this remission classification task is appropriate. However, the Bayesian approach is computationally complex, where increasing the number of parameters will lead to more time consumption during the fitting process, and the model accuracy will be better proportional to the time training. Therefore, we can expect more accuracy improvement when we build a larger model or use different Bayesian methods, for example, choosing different prior, or applying a hybrid approach in an actual research project.
 
-Compared to these models, the hierarchical models, particularly the one with a global coefficient, provided a good balance between capturing global and group-level variations, leading to the best overall performance. The GLM models also showed promising results with less computational resources, which can also been a threshold for us to recompute the bayesian model in a researc project. Moreover, GLM also describe us the potential of using more parameters in Bayesian approach can lead to better result, which have also experimented in Potential section.
+Compared to these models, the hierarchical models, particularly the one with a global coefficient, provided a good balance between capturing global and group-level variations, leading to the best overall performance. The GLM models also showed promising results with fewer computational resources, which can also be a threshold for us to recompute the Bayesian model in a research project. Moreover, GLM also describes to us the potential of using more parameters in the Bayesian approach can lead to better results, which have also been experimented with in the Potential Improvements section.
 
 # 7. Self-Reflection
 
-Regarding to the project, we have learned how to collaborate and help each other in the group. The project has been done with multiple trials and errors, with different parameter fitting. And the final result is the balance trade-off of accuracy and time training. In some cases, some evaluation metrics need the knowledge, leading to our discussion and revision of course content material and providing the opportunity for us to improve ourselves throughout the professor's project report. Even though the Bayesian classification result cannot be used in real research work and does not have a good accuracy compared to the other research publication, the application of Bayesian and how to evaluate the model can help us for building our fundamental knowledge and inspire our future research path. Moreover, the process of doing the project together can also enhance our skill in teamwork and communication. We really appreciate the opportunity from the course orientation to the final project.
-
-# Appendix: Environment setup
-
-```         
-rm(list = ls()) # Remove the environment variables
-setwd("Your working directory here") 
-SEED = 42 # Set the seed for reproducibility
-if(!require(nnet)) {
-  install.packages("nnet")
-  library(nnet)
-}
-if (!require(rstan)) {
-    install.packages("rstan")
-    library(rstan)
-}
-if (!require(loo)) {
-    install.packages("loo")
-    library(loo)
-}
-if (!require(gridExtra)) {
-    install.packages("gridExtra")
-    library(gridExtra)
-}
-if (!require(grid)) {
-    install.packages("grid")
-    library(grid)
-}
-if (!require(rmarkdown)) {
-    install.packages("rmarkdown")
-    library(rmarkdown)
-}
-if (!require(tidybayes)) {
-    install.packages("tidybayes")
-    library(tidybayes)
-}
-if (!require(brms)) {
-    install.packages("brms")
-    library(brms)
-}
-if(!require(cmdstanr)){
-    install.packages("cmdstanr", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
-    library(cmdstanr)
-}
-cmdstan_installed <- function(){
-  res <- try(out <- cmdstanr::cmdstan_path(), silent = TRUE)
-  !inherits(res, "try-error")
-}
-if(!cmdstan_installed()){
-    install_cmdstan()
-}
-if(!require(ggplot2)){
-    install.packages("ggplot2")
-    library(ggplot2)
-}
-ggplot2::theme_set(theme_minimal(base_size = 14))
-if(!require(bayesplot)){
-    install.packages("bayesplot")
-    library(bayesplot)
-}
-if(!require(posterior)){
-    install.packages("posterior")
-    library(posterior)
-}
-if (!require(priorsense)) {
-  install.packages("priorsense")
-  library(priorsense)
-}
-if (!require(tibble)) {
-  install.packages("tibble")
-  library(tibble)
-}
-
-if (!require(dplyr)) {
-  install.packages("dplyr")
-  library(dplyr)
-}
-if (!require(pROC)) {
-  install.packages("pROC")
-  library(pROC)
-}
-if (!require(caret)) {
-  install.packages("caret")
-  library(caret)
-}
-if(!require(fitdistrplus)){
-    install.packages("fitdistrplus", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
-    library(fitdistrplus)
-}
-if(!require(e1071)) {
-  install.packages("e1071")
-  library(e1071)
-}
-if(!require(caret)) {
-  install.packages("caret")
-  library(caret)
-}
-options(tinytable_format_num_fmt = "significant_cell", tinytable_format_digits = 2, tinytable_tt_digits=2)
-if (!require(patchwork)) {
-  install.packages("patchwork")
-  library(patchwork)
-}
-```
+Regarding the project, we have learned how to collaborate and help each other in the group. The project has been done with multiple trials and errors, with different parameter fitting. And the final result is the balance trade-off of accuracy and time training. In some cases, some evaluation metrics need knowledge, leading to our discussion and revision of course content material and providing the opportunity for us to improve ourselves throughout the professor's project report. Even though the Bayesian classification result cannot be used in real research work and does not have a good accuracy compared to the other research publications, the application of Bayesian and how to evaluate the model can help us build our fundamental knowledge and inspire our future research path. Moreover, the process of doing the project together can also enhance our skills in teamwork and communication. We appreciate the opportunity from the course orientation to the final project.
 
 # References
