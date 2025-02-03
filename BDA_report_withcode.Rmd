@@ -258,21 +258,20 @@ Load the data comprising approximately 5K rows of blood chemistry with remission
 #Loading the data
 load("thiomon.rda")
 thiomon <- na.omit(thiomon)
+
+#Process the data set with some additional processing
+source_data <- thiomon
 ```
 
 ```{r}
-#Process the data set with some additional processing
-source_data <- thiomon
-
-#Take the ratio of hgb and hct which describes if the patient is anaemic or not
+# Take the ratio of hgb and hct which describes if the patient is anaemic or not
 source_data$hbghctrat = round(thiomon$hgb/thiomon$hct,2)
 
-#Group into 5 groups
+# Group into 5 groups
 source_data$hbghctrat <- cut(source_data$hbghctrat, breaks = seq(min(source_data$hbghctrat), max(source_data$hbghctrat), length.out = 6), labels = c(1,2,3,4,5))
 
-#Convert this to a character label
+# Convert this to a character label
 source_data$hbghctrat <- as.character(source_data$hbghctrat)
-
 source_data$hgbratnum <- cut(source_data$hgb, breaks = seq(min(source_data$hgb), max(source_data$hgb), length.out = 6), labels = c(1,2,3,4,5))
 source_data$hgbrat <- as.character(source_data$hgbratnum)
 
@@ -331,7 +330,7 @@ There are 30 blood parameters which are identified by the database. Using the ML
 
 The model with covariates definitely has a better EPLD compared to the base model and hence having covariates in our Bayesian model definitely makes sense. Going through the exercise, the 'hgb' and 'lymph_percent' seem the dominant variables and they have 58% explanatory power [@vehtari_collinear_demo].
 
-```{r}
+```
 #lm_formula <- remission ~ 0 + hgb + lymph_percent
 #lm1 <- lm(formula = lm_formula, data = train_data)
 #display(lm1)
@@ -347,7 +346,8 @@ To allow for slope and intercept to be defined in the separate and hierarchical 
 
 Make a basic pooled model.
 
-```{r warning=FALSE, message=FALSE}
+```{r error=FALSE, warning=FALSE, message=FALSE}
+invisible({capture.output({
 ref_thiomon_formulae_pooled <- bf(remission ~ 1, family = "bernoulli")
 
 thiomon_priors_default_priors_pooled <- get_prior(ref_thiomon_formulae_pooled, data = train_data)
@@ -369,10 +369,11 @@ thiomon_data_model_pooled <- brm(
     chains = 4,
     control = list(
       adapt_delta = 0.8,
-      max_treedepth = 20                 
+      max_treedepth = 20
     ),
     threads = threading(2), cores = 8, backend = "cmdstanr"
 )
+})})
 ```
 
 There are no divergent transactions reported. Let's check for some model-related diagnostics.
@@ -381,7 +382,7 @@ There are no divergent transactions reported. Let's check for some model-related
 
 First checking the model for any discrepancies in R-hat and ESS.
 
-```{r}
+```{r echo=TRUE}
 thiomon_data_model_pooled
 ```
 
@@ -389,7 +390,7 @@ R-hat and effective sample sizes look good. At convergence also R-hat value is 1
 
 ### 3.1.2 Pareto k-hat
 
-```{r}
+```{r echo=TRUE}
 loo(thiomon_data_model_pooled)
 ```
 
@@ -399,7 +400,7 @@ There are no Pareto k-hat estimated greater than 0.7 which is what we desire.
 
 Continuing with checks on prior, justification for the chosen prior is that the default prior 'student_t(3, 0, 2.5)' is almost equivalent to a 'normal(0, 1.5)' but we find that the underlying 'theta' of the distribution is '0.48' which allows us to make a narrower choice.
 
-```{r}
+```{r echo=TRUE}
 data.frame(theta = plogis(rnorm(n=20000, mean=0, sd=1.0))) |>
   mcmc_hist() +
   xlim(c(0,1)) +
@@ -410,21 +411,21 @@ It seems it is a correct choice as there is no conflict revealed from the prior 
 
 ### 3.1.4 Posterior prior sensitivity
 
-```{r}
+```{r echo=TRUE}
 thiomon_data_model_pooled |>
   powerscale_plot_dens(help_text=FALSE)
 ```
 
 The values themselves are also very small.
 
-```{r}
+```{r echo=TRUE}
 thiomon_data_model_pooled |>
   powerscale_sensitivity() |> tt()
 ```
 
 Posterior predictive checks seem fine as well. Bars in the plot seem to fit well.
 
-```{r}
+```{r echo=TRUE}
 pp_check(thiomon_data_model_pooled, type = 'bars', ndraws = 200)
 ```
 
@@ -432,13 +433,13 @@ pp_check(thiomon_data_model_pooled, type = 'bars', ndraws = 200)
 
 LOO-PIT check seems fine as well.
 
-```{r}
+```{r echo=TRUE}
 pp_check(thiomon_data_model_pooled, type = 'loo_pit_qq', ndraws = 4000)
 ```
 
 LOO-PIT ECDF is within the blue recommendation.
 
-```{r}
+```{r echo=TRUE}
 pp_check(thiomon_data_model_pooled, type = 'pit_ecdf', ndraws = 4000)
 ```
 
@@ -446,7 +447,7 @@ pp_check(thiomon_data_model_pooled, type = 'pit_ecdf', ndraws = 4000)
 
 The value of the population intercept 'alpha' is estimated at 0.14. We exclude the likelihood parameters.
 
-```{r}
+```{r echo=TRUE}
 as_draws_df(thiomon_data_model_pooled)  |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
 ```
 
@@ -454,7 +455,8 @@ as_draws_df(thiomon_data_model_pooled)  |> subset_draws(variable=c('lprior','lp_
 
 Try with a separate model. Let's try with the sample one below using the recommended parameters from the above section:
 
-```{r warning=FALSE, message=FALSE}
+```{r error=FALSE, warning=FALSE, message=FALSE}
+invisible({capture.output({
 ref_thiomon_formulae_separate <- bf(remission ~ 0 + hgbrat + lymph_percent, family = "bernoulli")
 
 thiomon_priors_default_priors_separate <- get_prior(ref_thiomon_formulae_separate, data = train_data)
@@ -485,11 +487,12 @@ thiomon_data_model_separate <- brm(
     ),
     threads = threading(2), cores = 8, backend = "cmdstanr"
 )
+})})
 ```
 
 ### 3.2.1 Checking if the covariates are normally distributed
 
-```{r}
+```{r echo=TRUE}
 train_data |>
   ggplot(aes(x = hgb)) + xlim(c(0,50)) +
   geom_histogram(binwidth = 0.5, fill = "skyblue", color = "black") +
@@ -497,7 +500,7 @@ train_data |>
   labs(title = "MCMC Histogram of Haemoglobin", x = "Parameter Value", y = "Frequency")
 ```
 
-```{r}
+```{r echo=TRUE}
 train_data |>
   ggplot(aes(x = lymph_percent)) + xlim(c(0,75)) +
   geom_histogram(binwidth = 1, fill = "skyblue", color = "black") +
@@ -513,12 +516,12 @@ We don't use flat priors as they are uninformative and we have lots of data to g
 
 With our chosen priors (we used the default priors first and then used the posterior of the slopes to judge what we need), we expect to see no prior sensitivity and we are right. Power-scaling with cumulative Jensen-Shannon distance diagnostic indicates no prior data conflict.
 
-```{r}
+```{r echo=TRUE}
 thiomon_data_model_separate |>
   powerscale_plot_dens(help_text=FALSE)
 ```
 
-```{r}
+```{r echo=TRUE}
 thiomon_data_model_separate |>
   powerscale_sensitivity() |> tt()
 ```
@@ -527,25 +530,25 @@ thiomon_data_model_separate |>
 
 First checking the model for any discrepancies in R-hat and ESS before proceeding any further.
 
-```{r}
+```{r echo=TRUE}
 thiomon_data_model_separate
 ```
 
 R-hat and effective sample sizes look good. At convergence also R-hat value is 1 means the chains have converged well.
 
-```{r}
+```{r echo=TRUE}
 loo(thiomon_data_model_separate)
 ```
 
 ### 3.2.4 Issue with Pareto K-hat and Solution
 
-```{r}
+```{r echo=TRUE}
 loo(thiomon_data_model_separate)
 ```
 
 In case there are complaints about Pareto k-estimates, we use the following command and refit the model by removing the observations causing the conflict. Here the model was refit 1 times as there was 1 value with a value between 0.7 and 1.
 
-```{r}
+```{r echo=TRUE}
 thiomon_data_model_separate <- add_criterion(thiomon_data_model_separate, criterion='loo', reloo=TRUE)
 ```
 
@@ -553,19 +556,19 @@ The Pareto k-estimates indicate there are no observations that have k \> 0.7. Po
 
 ### 3.2.5 Posterior Predictive Checking
 
-```{r}
+```{r echo=TRUE}
 pp_check(thiomon_data_model_separate, type = 'bars', ndraws = 200)
 ```
 
 LOO-PIT check seems fine as well.
 
-```{r}
+```{r echo=TRUE}
 pp_check(thiomon_data_model_separate, type = 'loo_pit_qq', ndraws = 4000)
 ```
 
 LOO-PIT ECDF is within the recommendation.
 
-```{r}
+```{r echo=TRUE}
 pp_check(thiomon_data_model_separate, type = 'pit_ecdf', ndraws = 4000)
 ```
 
@@ -573,7 +576,7 @@ pp_check(thiomon_data_model_separate, type = 'pit_ecdf', ndraws = 4000)
 
 The slopes for the covariates can be listed using the following.
 
-```{r}
+```{r echo=TRUE}
 as_draws_df(thiomon_data_model_separate)  |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
 ```
 
@@ -583,7 +586,8 @@ Let's try a hierarchical model. In 'hier_1' there is no global intercept but in 
 
 ### 3.3.1. Hierarchical model without global concept
 
-```{r warning=FALSE, message=FALSE}
+```{r error=FALSE, warning=FALSE, message=FALSE}
+invisible({capture.output({
 ref_thiomon_formulae_hier_1 <- bf(remission ~ 0 + lymph_percent + (1 | hgbrat), family = "bernoulli")
 
 thiomon_priors_default_priors_hier_1 <- get_prior(ref_thiomon_formulae_hier_1, data = train_data)
@@ -615,13 +619,15 @@ thiomon_data_model_hier_1 <- brm(
     ),
     threads = threading(2), cores = 8, backend = "cmdstanr"
 )
+})})
 ```
 
 ### 3.3.2. Hierarchical model with global concept
 
 Note we have also set an informative prior on the Intercept as flat priors cause problems in loo checking due to Pareto K-hat values.
 
-```{r warning=FALSE, message=FALSE}
+```{r error=FALSE, warning=FALSE, message=FALSE}
+invisible({capture.output({
 ref_thiomon_formulae_hier_2 <- bf(remission ~ 1 + lymph_percent + (1 | hgbrat), family = "bernoulli")
 
 thiomon_priors_default_priors_hier_2 <- get_prior(ref_thiomon_formulae_hier_2, data = train_data)
@@ -658,13 +664,14 @@ thiomon_data_model_hier_2 <- brm(
     ),
     threads = threading(2), cores = 8, backend = "cmdstanr"
 )
+})})
 ```
 
 ### 3.3.3 R-hat and Effective Sample Size (ESS)
 
 R-hat and ESS values look good. Convergence at the end of the run indicates R-hat is 1.0 which means samples are reliable and can be used for inference. Also, posterior prior sensitivity is well adjusted.
 
-```{r}
+```{r echo=TRUE}
 thiomon_data_model_hier_1 |>
   powerscale_sensitivity()
 ```
@@ -673,24 +680,24 @@ The prior sensitivity caused some issues for us. There were a few divergent tran
 
 The following commands are generic for both the hierarchical model choices. We continue with hier_2 as both the models have almost the same EPLD value (negligible difference as expected).
 
-```{r}
+```{r echo=TRUE}
 thiomon_data_model_hier_2 |>
   powerscale_sensitivity()
 ```
 
 ### 3.3.4 Issue with Pareto K-hat and Solution
 
-```{r}
+```{r echo=TRUE}
 loo(thiomon_data_model_hier_1)
 ```
 
-```{r}
+```{r echo=TRUE}
 loo(thiomon_data_model_hier_2)
 ```
 
 Since there were no values with problematic K-hat the following is not required.
 
-```{r}
+```{r }
 thiomon_data_model_hier_1 <- add_criterion(thiomon_data_model_hier_1, criterion='loo', reloo=TRUE)
 ```
 
@@ -700,11 +707,11 @@ thiomon_data_model_hier_22 <- add_criterion(thiomon_data_model_hier_2, criterion
 
 ### 3.3.5 LOO-PIT check
 
-```{r}
+```{r echo=TRUE}
 pp_check(thiomon_data_model_hier_1, type = 'loo_pit_qq', ndraws = 4000)
 ```
 
-```{r}
+```{r echo=TRUE}
 pp_check(thiomon_data_model_hier_2, type = 'loo_pit_qq', ndraws = 4000)
 ```
 
@@ -716,7 +723,7 @@ There is no issue any more of prior sensitivity.
 
 ### 3.4.1 LOO comparing all the 4 models
 
-```{r}
+```{r echo=TRUE}
 loo_compare(loo(thiomon_data_model_pooled), loo(thiomon_data_model_separate), loo(thiomon_data_model_hier_1), loo(thiomon_data_model_hier_2)) |>
   as.data.frame() |>
   rownames_to_column("model") |>
@@ -728,7 +735,7 @@ The best-performing model is the hierarchical, closely followed by the separate 
 
 ### 3.4.2 Model posterior distributions
 
-```{r}
+```{r echo=TRUE}
 ph1 <- thiomon_data_model_hier_1 |>
   spread_rvars(b_lymph_percent, r_hgbrat[hgbrat,]) |>
   mutate(mean_value = b_lymph_percent + r_hgbrat) |>
@@ -779,7 +786,7 @@ The reasons are mostly clear - the separate and hierarchical models perform almo
 
 ### 3.4.3 Bayes and LOO R2 checks
 
-```{r warning=FALSE}
+```{r warning=FALSE, echo=TRUE}
 #Pooled model
 loo_R2_pooled <- loo_R2(thiomon_data_model_pooled)
 Bayes_R2_pooled <- bayes_R2(thiomon_data_model_pooled)
@@ -819,7 +826,7 @@ Confusion matrix is a common method for binary classification tasks, where the p
 
 ### 4.1.1. Pooled Model
 
-```{r}
+```{r echo=TRUE}
 # Calculate predicted probabilities on training data
 train_predicted_probs_pooled <- posterior_predict(thiomon_data_model_pooled, newdata = train_data, draws = 10000, allow_new_levels = TRUE)
 train_mean_probs_pooled <- colMeans(train_predicted_probs_pooled)
@@ -847,7 +854,7 @@ The accuracy of the pooled model is close to random guessing, as indicated by th
 
 ### 4.1.2. Separate model
 
-```{r}
+```{r echo=TRUE}
 # Calculate predicted probabilities on training data
 train_predicted_probs_separate <- posterior_predict(thiomon_data_model_separate, newdata = train_data, draws = 10000, allow_new_levels = TRUE)
 train_mean_probs_separate <- colMeans(train_predicted_probs_separate)
@@ -874,7 +881,7 @@ The separate model performs better than the pooled model. The model has a higher
 
 ### 4.1.3. Hierarchical model with global concept
 
-```{r}
+```{r echo=TRUE}
 # Calculate predicted probabilities on training data
 train_predicted_probs_hierarchical_1 <- posterior_predict(thiomon_data_model_hier_1, newdata = train_data, draws = 10000, allow_new_levels = TRUE)
 train_mean_probs_hierarchical_1 <- colMeans(train_predicted_probs_hierarchical_1)
@@ -901,7 +908,7 @@ This hierarchical model has an accuracy of nearly 60% (which may be changed when
 
 ### 4.1.4. Hierarchical model without global concept
 
-```{r}
+```{r echo=TRUE}
 # Calculate predicted probabilities on training data
 train_predicted_probs_hierarchical_2 <- posterior_predict(thiomon_data_model_hier_2, newdata = train_data, draws = 10000, allow_new_levels = TRUE)
 train_mean_probs_hierarchical_2 <- colMeans(train_predicted_probs_hierarchical_2)
@@ -928,7 +935,7 @@ Hierarchical model 2 performs approximately with hierarchical model 1. The sensi
 
 ### 4.1.5. GLM Model
 
-```{r}
+```{r echo=TRUE}
 # Predict probabilities on the training data
 pred_probs_glm <- predict(model_glm, train_data, type = "response")
 
@@ -959,7 +966,7 @@ The GLM model outperforms all other models with an accuracy of over 65%. The mod
 
 ## 4.2. ROC curves and AUC values
 
-```{r}
+```{r echo=TRUE}
 # Function to interpolate and smooth ROC curve with jitter
 interpolate_smooth_roc_jitter <- function(roc_curve, n = 100, jitter_amount = 1e-5) {
   roc_smooth <- smooth(roc_curve)
@@ -1064,7 +1071,8 @@ train_data <- na.omit(train_data)
 test_data <- source_data[4501:nrow(source_data), ]
 ```
 
-```{r warning=FALSE, message=FALSE}
+```{r error=FALSE, warning=FALSE, message=FALSE}
+invisible({capture.output({
 ref_thiomon_formulae_separate <- bf(remission ~ 0 + hgbrat + lymph_percent, family = "bernoulli")
 
 thiomon_priors_default_priors_separate <- get_prior(ref_thiomon_formulae_separate, data = train_data)
@@ -1095,6 +1103,7 @@ thiomon_data_model_separate_improvement <- brm(
     ),
     threads = threading(2), cores = 8, backend = "cmdstanr"
 )
+})})
 ```
 
 ```{r include=FALSE}
@@ -1115,7 +1124,7 @@ as_draws_df(thiomon_data_model_separate_improvement)  |> subset_draws(variable=c
 
 All of the Bayesian check methods have been produced internally and did not provide any problems compared to the previous model. Therefore, we could come to an evaluation session
 
-```{r}
+```{r echo=TRUE}
 # Calculate predicted probabilities on training data
 train_predicted_probs_separate_improvement <- posterior_predict(thiomon_data_model_separate_improvement, newdata = train_data, draws = 10000)
 train_mean_probs_separate_improvement <- colMeans(train_predicted_probs_separate_improvement)
@@ -1173,7 +1182,8 @@ train_data <- na.omit(train_data)
 test_data <- source_data[4501:nrow(source_data), ]
 ```
 
-```{r warning=FALSE, message=FALSE}
+```{r error=FALSE, warning=FALSE, message=FALSE}
+invisible({capture.output({
 ref_thiomon_formulae_separate <- bf(remission ~ 0 + hgbrat + lymph_percent + hct + wbc + mpv + mchc, family = "bernoulli")
 
 thiomon_priors_default_priors_separate <- get_prior(ref_thiomon_formulae_separate, data = train_data)
@@ -1223,6 +1233,7 @@ thiomon_data_model_separate_improvement_1 <- brm(
     ),
     threads = threading(2), cores = 8, backend = "cmdstanr"
 )
+})})
 ```
 
 ```{r include=FALSE}
@@ -1241,7 +1252,7 @@ pp_check(thiomon_data_model_separate_improvement_1, type = 'pit_ecdf', ndraws = 
 as_draws_df(thiomon_data_model_separate_improvement_1)  |> subset_draws(variable=c('lprior','lp__'), exclude=TRUE) |> summarise_draws() |> tt()
 ```
 
-```{r}
+```{r echo=TRUE}
 # Calculate predicted probabilities on training data
 train_predicted_probs_separate_improvement_1 <- posterior_predict(thiomon_data_model_separate_improvement_1, newdata = train_data, draws = 10000)
 train_mean_probs_separate_improvement_1 <- colMeans(train_predicted_probs_separate_improvement_1)
@@ -1270,7 +1281,8 @@ Moreover, besides these trials that have been implemented, there can be room for
 
 One improvement that we consider is to use the R2D2 method for the priors and use the full set of covariates for the modeling.
 
-```{r warning=FALSE, message=FALSE}
+```{r error=FALSE, warning=FALSE, message=FALSE}
+invisible({capture.output({
 formula_r2d2 <- bf(remission ~ 0 + wbc + hgb + hct + plt + rbc + mcv + mch + mchc + rdw + mpv + neut_percent + lymph_percent + mono_percent + eos_percent + baso_percent + sod + pot + chlor + co2 + un + creat + gluc + cal + prot + alb + ast + alt + alk + tbil, family = "bernoulli")
 
 fit_r2d2 <- brm(formula_r2d2, data = train_data,
@@ -1278,6 +1290,7 @@ fit_r2d2 <- brm(formula_r2d2, data = train_data,
             prior=c(prior(R2D2(mean_R2 = 0.5, prec_R2 = 1, cons_D2 = 1,
                                autoscale = FALSE),class=b)),
             threads = threading(2), cores = 8, backend = "cmdstanr")
+})})
 ```
 
 ```{r}
@@ -1289,7 +1302,7 @@ p_fit_r2d2 <- fit_r2d2 |> as_draws_df() |> as_draws_rvars() |> spread_rvars(b_wb
 (p_fit_r2d2) * xlim(c(0.0,1.0))
 ```
 
-```{r}
+```{r echo=TRUE}
 train_predicted_probs_r2d2 <- posterior_predict(fit_r2d2, newdata = train_data, draws = 10000, allow_new_levels = TRUE)
 train_mean_probs_r2d2 <- colMeans(train_predicted_probs_r2d2)
 
@@ -1314,7 +1327,7 @@ print(conf_matrix_r2d2)
 
 ## 5.4. ROC curves/AUC values comparison
 
-```{r}
+```{r echo=TRUE}
 # Calculate and interpolate ROC curves with jitter
 roc_separate_train <- interpolate_smooth_roc_jitter(train_roc_curve_separate)
 roc_separate_test <- interpolate_smooth_roc_jitter(roc_curve_separate)
@@ -1349,7 +1362,7 @@ test_roc_data <- rbind(
   data.frame(roc_separate_test, model = paste("Separate Test (AUC =", round(auc_separate_test, 4), ")")),
     data.frame(roc_separate_improvement_test, model = paste("Separate model + more training samples (AUC =", round(auc_separate_improvement_test, 4), ")")),
     data.frame(roc_separate_improvement_1_test, model = paste("Separate model + more variables (AUC =", round(auc_separate_improvement_1_test, 4), ")")),
-  data.frame(roc_r2d2_improvement_test, model = paste("R2D2 prior + more variables (AUC =", round(auc_separate_improvement_1_train, 4), ")"))
+  data.frame(roc_r2d2_improvement_test, model = paste("R2D2 prior (AUC =", round(auc_separate_improvement_1_train, 4), ")"))
 )
 
 # Plot all ROC curves in one plot
