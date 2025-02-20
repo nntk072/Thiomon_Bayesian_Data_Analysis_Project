@@ -291,7 +291,7 @@ test_data <- source_data[4501:nrow(source_data), ]
 
 There are 30 blood parameters which are identified by the database. Using the MLE algorithm 'lm', we can quickly check that all of these variables together explain 66% of the variability in the data set. Unfortunately, using all of them is computationally inefficient and will take a long time to fit a Bayesian model. Hence we need to prune the list down.
 
-```{r}         
+```{r}
 #lm_formula <- remission ~ 0 + days_of_life + wbc + hgb + hct + plt + rbc + mcv + mch + #mchc + rdw + mpv + lymph_percent + neut_percent + mono_percent + eos_percent + #baso_percent + sod + pot + chlor + co2 + un + creat + gluc + cal + prot + alb + ast + #alt + alk + tbil}
 #residual sd = 0.44, R-Squared = 0.66
 
@@ -688,10 +688,12 @@ thiomon_data_model_hier_2 |>
 ### 3.3.4 Issue with Pareto K-hat and Solution
 
 ```{r echo=FALSE}
+summary(thiomon_data_model_hier_1)
 loo(thiomon_data_model_hier_1)
 ```
 
 ```{r echo=FALSE}
+summary(thiomon_data_model_hier_2)
 loo(thiomon_data_model_hier_2)
 ```
 
@@ -702,7 +704,7 @@ thiomon_data_model_hier_1 <- add_criterion(thiomon_data_model_hier_1, criterion=
 ```
 
 ```{r}
-thiomon_data_model_hier_22 <- add_criterion(thiomon_data_model_hier_2, criterion='loo', reloo=TRUE)
+thiomon_data_model_hier_2 <- add_criterion(thiomon_data_model_hier_2, criterion='loo', reloo=TRUE)
 ```
 
 ### 3.3.5 LOO-PIT check
@@ -959,7 +961,7 @@ print(conf_matrix_glm)
 roc_curve_glm <- roc(test_data$remission, pred_probs_glm_test)
 # plot(roc_curve_glm, main = "ROC Curve for GLM Model")
 # Plot the ROC curve
-# plot(roc_curve_glm, main = "ROC Curve for GLM Model")
+plot(roc_curve_glm, main = "ROC Curve for GLM Model")
 ```
 
 The GLM model outperforms all other models with an accuracy of over 65%. The model has a good balance between sensitivity and specificity, making it effective at identifying both true positives and true negatives.
@@ -1005,18 +1007,18 @@ auc_glm_test <- auc(roc_curve_glm)
 # Combine ROC curves into one data frame
 
 train_roc_data <- rbind(
-  data.frame(roc_pooled_train, model = paste("Pool Train (AUC =", round(auc_pooled_train, 4), ")")),
-  data.frame(roc_separate_train, model = paste("Separate Train (AUC =", round(auc_separate_train, 4), ")")),
-  data.frame(roc_hierarchical_1_train, model = paste("Hierarchical with Global Intercept Train (AUC =", round(auc_hierarchical_1_train, 4), ")")),
-  data.frame(roc_hierarchical_2_train, model = paste("Hierarchical without Global Intercept Train (AUC =", round(auc_hierarchical_2_train, 4), ")")),
-  data.frame(roc_glm_train, model = paste("GLM Train (AUC =", round(auc_glm_train, 4), ")"))
+  data.frame(roc_pooled_train, model = paste("Pool Train (AUC =", round(auc_pooled_train, 2), ")")),
+  data.frame(roc_separate_train, model = paste("Separate Train (AUC =", round(auc_separate_train, 2), ")")),
+  data.frame(roc_hierarchical_1_train, model = paste("Hierarchical with Global Intercept Train (AUC =", round(auc_hierarchical_1_train, 2), ")")),
+  data.frame(roc_hierarchical_2_train, model = paste("Hierarchical without Global Intercept Train (AUC =", round(auc_hierarchical_2_train, 2), ")")),
+  data.frame(roc_glm_train, model = paste("GLM Train (AUC =", round(auc_glm_train, 2), ")"))
   )
 test_roc_data <- rbind(
-  data.frame(roc_pooled_test, model = paste("Pool Test (AUC =", round(auc_pooled_test, 4), ")")),
-  data.frame(roc_separate_test, model = paste("Separate Test (AUC =", round(auc_separate_test, 4), ")")),
-  data.frame(roc_hierarchical_1_test, model = paste("Hierarchical with Global Intercept Test (AUC =", round(auc_hierarchical_1_test, 4), ")")),
-  data.frame(roc_hierarchical_2_test, model = paste("Hierarchical without Global Intercept Test (AUC =", round(auc_hierarchical_2_test, 4), ")")),
-  data.frame(roc_glm_test, model = paste("GLM Test (AUC =", round(auc_glm_test, 4), ")"))
+  data.frame(roc_pooled_test, model = paste("Pool Test (AUC =", round(auc_pooled_test, 2), ")")),
+  data.frame(roc_separate_test, model = paste("Separate Test (AUC =", round(auc_separate_test, 2), ")")),
+  data.frame(roc_hierarchical_1_test, model = paste("Hierarchical with Global Intercept Test (AUC =", round(auc_hierarchical_1_test, 2), ")")),
+  data.frame(roc_hierarchical_2_test, model = paste("Hierarchical without Global Intercept Test (AUC =", round(auc_hierarchical_2_test, 2), ")")),
+  data.frame(roc_glm_test, model = paste("GLM Test (AUC =", round(auc_glm_test, 2), ")"))
   )
 # Plot all ROC curves in one plot
 ggplot(train_roc_data, aes(x = fpr, y = tpr, color = model)) +
@@ -1353,16 +1355,16 @@ auc_r2d2_improvement_1_test <- auc(roc_curve_r2d2)
 # Combine ROC curves into one data frame
 
 train_roc_data <- rbind(
-  data.frame(roc_separate_train, model = paste("Separate Train (AUC =", round(auc_separate_train, 4), ")")),
-  data.frame(roc_separate_improvement_train, model = paste("Separate model + more training samples (AUC =", round(auc_separate_improvement_train, 4), ")")),
-  data.frame(roc_separate_improvement_1_train, model = paste("Separate model + more variables (AUC =", round(auc_separate_improvement_1_train, 4), ")")),
-  data.frame(roc_r2d2_improvement_train, model = paste("R2D2 prior (AUC =", round(auc_separate_improvement_1_train, 4), ")"))
+  data.frame(roc_separate_train, model = paste("Separate Train (AUC =", round(auc_separate_train, 2), ")")),
+  data.frame(roc_separate_improvement_train, model = paste("Separate model + more training samples (AUC =", round(auc_separate_improvement_train, 2), ")")),
+  data.frame(roc_separate_improvement_1_train, model = paste("Separate model + more variables (AUC =", round(auc_separate_improvement_1_train, 2), ")")),
+  data.frame(roc_r2d2_improvement_train, model = paste("R2D2 prior (AUC =", round(auc_separate_improvement_1_train, 2), ")"))
 )
 test_roc_data <- rbind(
-  data.frame(roc_separate_test, model = paste("Separate Test (AUC =", round(auc_separate_test, 4), ")")),
-    data.frame(roc_separate_improvement_test, model = paste("Separate model + more training samples (AUC =", round(auc_separate_improvement_test, 4), ")")),
-    data.frame(roc_separate_improvement_1_test, model = paste("Separate model + more variables (AUC =", round(auc_separate_improvement_1_test, 4), ")")),
-  data.frame(roc_r2d2_improvement_test, model = paste("R2D2 prior (AUC =", round(auc_separate_improvement_1_train, 4), ")"))
+  data.frame(roc_separate_test, model = paste("Separate Test (AUC =", round(auc_separate_test, 2), ")")),
+    data.frame(roc_separate_improvement_test, model = paste("Separate model + more training samples (AUC =", round(auc_separate_improvement_test, 2), ")")),
+    data.frame(roc_separate_improvement_1_test, model = paste("Separate model + more variables (AUC =", round(auc_separate_improvement_1_test, 2), ")")),
+  data.frame(roc_r2d2_improvement_test, model = paste("R2D2 prior (AUC =", round(auc_separate_improvement_1_train, 2), ")"))
 )
 
 # Plot all ROC curves in one plot

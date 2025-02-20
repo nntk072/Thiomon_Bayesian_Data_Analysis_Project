@@ -1,6 +1,6 @@
 .Rhistory
 .RData
-*.pdf
+
 .ipynb_checkpoints
 .Rproj.user
 *.RData
